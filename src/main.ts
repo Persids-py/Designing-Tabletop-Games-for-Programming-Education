@@ -3,6 +3,7 @@ import './hitbox.css';
 import './camera.css';
 import './character.css';
 import './alarm.css';
+import './generator.css';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
@@ -12,6 +13,9 @@ import {setupCharacter} from './character';
 import {alarmTasks,type AlarmTaskId} from './alarm';
 import {setupAlarmUI} from './alarm-ui';
 import {setupAlarmScene} from './alarm-scene';
+import {generatorTasks,type GeneratorTaskId} from './generator';
+import {setupGeneratorUI} from './generator-ui';
+import {setupGeneratorScene} from './generator-scene';
 const game=new Game();
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
@@ -34,15 +38,18 @@ const camera=setupCamera(map,world,game.player);
 const drawHitbox=setupHitbox(map,world,camera.toWorld);
 const drawCharacter=setupCharacter(el('player'),game.player);
 const drawAlarmScene=setupAlarmScene(world,mapUrl);
+const drawGeneratorScene=setupGeneratorScene(world);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
 const alarmUI=setupAlarmUI(game,{changed:render,completed:()=>afterRepair('警報燈光室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
+const generatorUI=setupGeneratorUI(game,{changed:render,completed:()=>afterRepair('發電機室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 let toastTimer:ReturnType<typeof setTimeout>;
 function toast(message:string) { el('toast').textContent=message;el('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('visible'),3200); }
 function closeRepair() { game.close();repairDialog.close();keys.clear();map.focus({preventScroll:true}); }
 function openRepair(id:string) {
   if(id==='room-1'&&game.index===0){alarmUI.open(game.alarm.next.id);keys.clear();return;}
+  if(id==='room-2'&&game.index===1){generatorUI.open(game.generator.next.id);keys.clear();return;}
   const error=game.open(id);if(error){toast(error);return;}
   keys.clear(); const level=game.current;
   el('dialog-step').textContent=`維修站 ${String(game.index+1).padStart(2,'0')} / 10`;
@@ -52,6 +59,8 @@ function openRepair(id:string) {
 }
 function render() {
   drawAlarmScene(game.alarm);
+  drawGeneratorScene(game.generator);
+  document.querySelector('.controls>span')!.textContent=game.index===0?'第一關 · 警報系統維修':game.index===1?'第二關 · 供電系統維修':'太空船維修任務';
   el('count').innerHTML=`${game.index} <small>/ 10</small>`;
   el('progress').style.width=`${game.index*10}%`;
   el('progress-note').textContent=game.completed?'所有系統運作正常':`尚有 ${10-game.index} 個系統等待修復`;
@@ -65,6 +74,11 @@ function render() {
     el('target-status').textContent=`● 設備修復 ${game.alarm.count} / 4`;
     el('target-help').textContent=game.alarm.ready?'三個設備已修復。前往警報啟動台，排序並驗證整個系統。':'前三個設備可分別維修。答錯可重試；三個設備都修好後，才能進行最終驗證。';
   }
+  if(game.index===1){
+    el('target-theme').textContent=`下一個設備：${game.generator.next.name}`;
+    el('target-status').textContent=`● 設備修復 ${game.generator.count} / 4`;
+    el('target-help').textContent=game.generator.ready?'三項維修已完成。前往供電測試台，預測輸出並驗證供電。':'先完成主電壓與備用變數設定，再修復顯示器。三項都完成後，才能進行供電驗證。';
+  }
   el('markers').innerHTML=levels.map((l,i)=>`<button class="marker ${i<game.index?'repaired':i===game.index?'active':'locked'}" style="left:${l.interactionPoint.x/MAP_WIDTH*100}%;top:${l.interactionPoint.y/MAP_HEIGHT*100}%" data-room="${l.id}" aria-label="${i+1}. ${l.roomName}：${i<game.index?'已修復':i===game.index?'目前目標':'未解鎖'}"><span>${i<game.index?'✓':i===game.index?'!':i+1}</span>${i===game.index?'<i class="marker-label">故障點</i>':''}</button>`).join('');
   el('route').innerHTML=levels.map((l,i)=>`<li class="${i<game.index?'done':i===game.index?'current':''}" ${i===game.index?'aria-current="step"':''}><span class="route-number">${i<game.index?'✓':String(i+1).padStart(2,'0')}</span><span>${l.roomName}</span><span class="route-state">${i<game.index?'完成':i===game.index?'進行中':'·'}</span></li>`).join('');
   if(game.index===0){
@@ -74,8 +88,15 @@ function render() {
       return `<button class="marker alarm-device ${repaired?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-alarm-task="${task.id}" ${i===0?'data-room="room-1"':''} aria-label="${task.name}：${repaired?'已修復':locked?'需先修好三個設備':'等待維修'}"><span>${repaired?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
     }).join(''));
   }
+  if(game.index===1){
+    el('markers').querySelector('[data-room="room-2"]')?.remove();
+    el('markers').insertAdjacentHTML('beforeend',generatorTasks.map((task,i)=>{
+      const repaired=game.generator.repaired[task.id],locked=!!game.generator.blocked(task.id),active=task.id===game.generator.next.id;
+      return `<button class="marker generator-device ${repaired?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-generator-task="${task.id}" ${i===0?'data-room="room-2"':''} aria-label="${task.name}：${repaired?'已修復':locked?'尚未解鎖':'等待維修'}"><span>${repaired?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
+    }).join(''));
+  }
 }
-el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else openRepair(target.dataset.room!);});
+el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else openRepair(target.dataset.room!);});
 el('close-dialog').onclick=closeRepair;
 repairDialog.addEventListener('cancel',event=>{event.preventDefault();closeRepair();});
 el('repair').onclick=()=>{
@@ -94,7 +115,7 @@ const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowrigh
 document.addEventListener('keydown',event=>{
   if((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]'))return;
   const key=event.key.toLowerCase();
-  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open){event.preventDefault();keys.add(key);}
+  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open){event.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));
 window.addEventListener('blur',()=>keys.clear());

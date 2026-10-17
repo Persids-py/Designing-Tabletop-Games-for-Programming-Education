@@ -2,6 +2,7 @@ import {test,expect,type Page} from '@playwright/test';
 import {levels} from '../../src/game';
 import {MAP_WIDTH,MAP_HEIGHT,SCALE,speed,walkable,move,type Point} from '../../src/map';
 import {alarmTasks,alarmRadius} from '../../src/alarm';
+import {generatorTasks,generatorRadius} from '../../src/generator';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -95,6 +96,51 @@ async function solveAlarmRoom(page:Page){
     }
   }
 }
+async function solveGeneratorRoom(page:Page){
+  await page.keyboard.press('m');
+  await page.locator('[data-generator-task="display"]').click();await expect(page.locator('#toast')).toContainText('先設定主發電機');
+  await page.locator('[data-generator-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成三項');
+  await page.keyboard.press('m');
+  for(const task of generatorTasks){
+    for(const p of route(await position(page),task.point,generatorRadius))await walkTo(page,p);
+    await page.locator(`[data-generator-task="${task.id}"]`).click();await expect(page.locator('#generator-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
+    await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='main'){
+      await page.screenshot({path:'test-results/generator-01-assignment.png',fullPage:true});
+      await page.getByRole('button',{name:'設定主電壓 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('賦值方向');
+      await expect(page.locator('#count')).toHaveText('1 / 10');
+      await page.locator('#assignment-tiles li').nth(2).dragTo(page.locator('#assignment-tiles li').nth(0));
+      await page.getByRole('button',{name:'左移 =',exact:true}).click();
+      await expect(page.locator('#assignment-tiles li code')).toHaveText(['target_voltage','=','220']);
+      await page.getByRole('button',{name:'設定主電壓 ↗'}).click();await expect(page.locator('.generator-dialog .terminal-output')).toContainText('220V');
+      await expect(page.locator('#generator-scene')).toHaveClass(/main-online/);
+    }else if(task.id==='backup'){
+      await page.getByRole('button',{name:'修復備用變數 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('NameError');
+      await page.keyboard.press('Escape');await expect(page.locator('#generator-dialog')).not.toBeVisible();await expect(page.locator('#target-status')).toContainText('1 / 4');
+      await page.locator('[data-generator-task="backup"]').click();await page.locator('#backup-name').fill('backup_voltage');
+      await page.getByRole('button',{name:'修復備用變數 ↗'}).click();await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('110V');
+    }else if(task.id==='display'){
+      await page.getByRole('button',{name:'更新電壓顯示 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('引號內是文字');
+      await page.locator('#voltage-code').fill('print(target_voltage)');await page.screenshot({path:'test-results/generator-03-display.png',fullPage:true});
+      await page.getByRole('button',{name:'更新電壓顯示 ↗'}).click();await expect(page.locator('#generator-scene .main-meter text')).toHaveText('220V');
+    }else{
+      await page.locator('input[name="power-output"][value="A"]').check();await page.getByRole('button',{name:'執行供電測試 ↗'}).click();
+      await expect(page.locator('#generator-feedback')).toContainText('最後一次');await expect(page.locator('#count')).toHaveText('1 / 10');
+      await page.locator('input[name="power-output"][value="B"]').check();await page.screenshot({path:'test-results/generator-04-verify.png',fullPage:true});
+      await page.getByRole('button',{name:'執行供電測試 ↗'}).click();await expect(page.locator('#generator-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('2 / 10');await expect(page.locator('#generator-scene')).toHaveAttribute('data-stage','powered');
+      await expect(page.locator('#target-title')).toHaveText('維生系統室');await page.clock.runFor(500);
+      await page.screenshot({path:'test-results/generator-05-powered.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('1 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+    if(task.id==='main'){
+      await page.locator('[data-generator-task="main"]').click();await expect(page.locator('#generator-dialog .device-success')).toContainText('已修復');
+      await page.getByRole('button',{name:'返回船艙 →'}).click();
+    }
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -112,6 +158,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   for(const [i,l] of levels.entries()){
     if(i===0){await solveAlarmRoom(page);continue;}
+    if(i===1){await solveGeneratorRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -123,5 +170,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await page.screenshot({path:'test-results/03-completed.png',fullPage:true});
   await page.getByRole('button',{name:'重新開始 ↻'}).click();await expect(page.locator('#count')).toHaveText('0 / 10');await expect(page.locator('#target-title')).toHaveText(levels[0].roomName);
   await expect(page.locator('#alarm-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#target-status')).toContainText('0 / 4');
+  await expect(page.locator('#generator-scene')).toHaveAttribute('data-stage','fault');
+  await expect(page.locator('#generator-scene .main-meter text')).toHaveText('---');await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('---');
   expect(errors).toEqual([]);
 });
