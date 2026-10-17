@@ -18,9 +18,17 @@
 - 不使用 force push，不重設或覆寫遠端歷史。遇到權限、衝突或網路阻礙時保留成果並如實說明。
 - 純文件修改檢查內容與差異；程式修改執行型別檢查、正式建置與必要功能驗證。修改遊戲流程時完整驗證十關。
 
-## Railway
+## GitHub Pages（目前主要部署平台）
 
-- 目標流程為 GitHub 推送 → CI 通過 → Railway 自動部署。
+- 使用者已改用 GitHub Pages；不再依賴 Railway 訂閱。
+- 目標流程為推送 main → CI 與瀏覽器測試通過 → GitHub Pages 自動部署。
+- 建置輸出為 `dist/`；維持相對資源路徑，首頁連結不得跳到帳號網站根目錄。
+- 公開網址：`https://persids-py.github.io/Designing-Tabletop-Games-for-Programming-Education/`。
+- 推送成功與網站部署成功分開回報，以 Actions 部署結果與公開網站確認上線狀態。
+
+## Railway（舊設定，保留備用）
+
+- 僅在使用者再次指定 Railway 時使用既有設定。
 - 正式服務使用 Railway 的 `PORT`，監聽 `0.0.0.0`。
 - GitHub 推送成功不等於 Railway 部署成功；回報時分別說明。
 - 沒有程式、帳號連接或部署服務時不得宣稱已部署。

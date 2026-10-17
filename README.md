@@ -27,7 +27,15 @@
 - 瀏覽器測試透過實際鍵盤事件走完十關，檢查面板、縮放、進度與重玩；不使用傳送或直接修改遊戲狀態。
 - [第一版驗證紀錄](第一版驗證紀錄.md)。
 
-## Railway 部署
+## GitHub Pages 部署（目前使用）
+
+遊戲網址：<https://persids-py.github.io/Designing-Tabletop-Games-for-Programming-Education/>
+
+第一次需在儲存庫 Settings → Pages → Build and deployment 將 Source 設為 GitHub Actions。之後每次推送 `main`，工作流程會執行測試、建置、完整瀏覽器驗證，全部通過後自動上傳 `dist/` 並部署。
+
+這一版為靜態網頁，不需要 Railway 或常駐 Node 伺服器。`npm start` 的伺服器保留供本機測試與其他部署方式使用。Vite 使用相對路徑，確保地圖、CSS、JavaScript 與首頁連結在專案子目錄正常載入。
+
+## Railway 部署（舊設定，保留備用）
 
 儲存庫包含 `railway.json`，設定建置、正式啟動與 `/health` 健康檢查。Railway 服務根目錄使用儲存庫根目錄，連接 `main` 分支。
 
@@ -39,7 +47,7 @@ GitHub Actions 會執行流程測試、正式建置與完整瀏覽器測試。�
 
 - [完整專案規格](專案規格.md)：需求、關卡、地圖規則、資料骨幹、驗收與待確認事項。
 - [給 Codex 的開工指令](給Codex的開工指令.md)：可直接交給 Codex 的實作任務。
-- [協作規範](AGENTS.md)：中文文件、自動 GitHub 提交與 Railway 部署工作流程。
+- [協作規範](AGENTS.md)：中文文件、自動 GitHub 提交與 GitHub Pages 部署工作流程。
 - `地圖.jpg`：正式遊戲底圖。
 - `房間布局圖.jpg`：房間位置與關卡順序參考。
 

@@ -1,5 +1,7 @@
 # 給 Codex 的開工指令
 
+> 部署更新：目前使用 GitHub Pages，已取代 Railway。後續任務沿用 `.github/workflows/check.yml` 的驗證與 Pages 部署流程、`vite.config.ts` 相對路徑設定；下方 Railway 文字為原始規劃，非目前部署要求。
+
 以下區塊可直接貼給 Codex；請在本專案資料夾使用，確保能讀取規格與兩張地圖。
 
 ---
