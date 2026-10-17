@@ -16,7 +16,10 @@ function route(start:Point,target:Point,range:number):Point[]{
     if(Math.hypot(p.x-target.x,p.y-target.y)<range-22*SCALE){end=key(x,y);break;}
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
       const nx=x+dx,ny=y+dy,k=key(nx,ny),q={x:nx*step,y:ny*step};
-      if(nx<0||ny<0||nx>=cols||ny>=rows||previous.has(k)||!walkable(q))continue;
+      // 鍵盤逐幀移動有數像素誤差，測試路線保留餘裕，避免沿牆角擦邊。
+      const clearance=5*SCALE;
+      const safe=[q,{x:q.x+clearance,y:q.y},{x:q.x-clearance,y:q.y},{x:q.x,y:q.y+clearance},{x:q.x,y:q.y-clearance}].every(walkable);
+      if(nx<0||ny<0||nx>=cols||ny>=rows||previous.has(k)||!safe)continue;
       const m=move(p,dx*step,dy*step);if(Math.hypot(m.x-q.x,m.y-q.y)>1)continue;
       previous.set(k,key(x,y));queue.push([nx,ny]);
     }
