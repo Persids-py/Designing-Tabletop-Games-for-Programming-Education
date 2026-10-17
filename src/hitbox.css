@@ -1,0 +1,22 @@
+.panel-heading { gap: 12px; }
+.panel-heading .map-caption { margin-left: auto; }
+.hitbox-toggle { border: 1px solid #536677; border-radius: 5px; padding: 5px 9px; font-size: 10px; color: #d6e6ef; background: #23313e; }
+.hitbox-toggle[aria-pressed="true"] { color: #a9f1ce; border-color: #5dba91; background: #163b2c; }
+.map #hitbox-layer { display: none; z-index: 5; filter: none; }
+.map.show-hitbox #hitbox-layer { display: block; }
+.hitbox-floor polygon { fill: #24e58c; fill-opacity: .14; stroke: #63ffa8; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hitbox-obstacle polygon { fill: #f94762; fill-opacity: .3; stroke: #ff7186; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+#hitbox-layer text { font: bold 18px ui-monospace, monospace; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: #06100f; stroke-width: 5px; fill: #b0ffd0; }
+#hitbox-layer .hitbox-obstacle text { fill: #ffd7df; }
+#hitbox-player { fill: #d0f6ff; stroke: #85ddff; }
+#hitbox-player .player-outline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+#hitbox-probe { fill: #adffcc; stroke: #adffcc; }
+#hitbox-probe .probe-outline { fill-opacity: .15; stroke-width: 2; vector-effect: non-scaling-stroke; }
+#hitbox-probe.blocked { fill: #ff7e94; stroke: #ff7e94; }
+.hitbox-help { padding: 13px 18px; background: #12231f; border-top: 1px solid #35634f; font-size: 11px; line-height: 1.8; color: #adbcba; }
+.hitbox-help[hidden] { display: none; }
+.hitbox-help > div { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.hitbox-help p { margin: 6px 0; }
+.hitbox-help output { font: 11px ui-monospace, monospace; color: #dbeae8; }
+.floor-key { color: #83f6b0; }.obstacle-key { color: #ff91a5; }.player-key { color: #9fe9ff; }
+@media(max-width:740px) { .panel-heading { padding: 0 12px; }.hitbox-toggle { margin-left: auto; } }

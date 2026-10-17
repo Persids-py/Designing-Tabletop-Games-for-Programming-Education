@@ -1,7 +1,9 @@
 import './style.css';
+import './hitbox.css';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
+import {setupHitbox} from './hitbox';
 const game=new Game();
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
@@ -15,6 +17,7 @@ app.innerHTML=`
 <dialog id="complete-dialog" aria-labelledby="complete-title"><p class="eyebrow">任務完成 / MISSION COMPLETE</p><div class="success-symbol">✓</div><h2 id="complete-title">太空船維修完成</h2><p>10 個系統已全數恢復運作。<br>這趟維修旅程，完成了。</p><button id="restart" class="primary">重新開始 <span>↻</span></button></dialog>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const map=el('map');
+const drawHitbox=setupHitbox(map);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
@@ -80,5 +83,5 @@ function frame(now:number) {
   el('proximity').textContent=game.completed?'所有系統已修復':near?'已抵達 · 點擊目前故障標記':'移動至閃爍標記附近';
   requestAnimationFrame(frame);
 }
-function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);}
+function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);drawHitbox(p);}
 render();requestAnimationFrame(frame);
