@@ -65,6 +65,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
       await page.locator(`[data-room="${l.id}"]`).click();
       await expect(page.locator('#repair-dialog')).toBeVisible();
       const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
+      await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
       await page.screenshot({path:'test-results/02-repair.png',fullPage:true});
       await page.keyboard.press('Escape');await expect(page.locator('#repair-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('0 / 10');
       await page.setViewportSize({width:1440,height:1000});

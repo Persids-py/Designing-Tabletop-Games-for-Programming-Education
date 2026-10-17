@@ -1,11 +1,13 @@
 import './style.css';
 import './hitbox.css';
 import './camera.css';
+import './character.css';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
 import {setupHitbox} from './hitbox';
 import {setupCamera} from './camera';
+import {setupCharacter} from './character';
 const game=new Game();
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
@@ -26,6 +28,7 @@ map.prepend(world);
 document.querySelector('.panel-heading>span:first-child')!.innerHTML='<i class="status-dot"></i>船內探索';
 const camera=setupCamera(map,world,game.player);
 const drawHitbox=setupHitbox(map,world,camera.toWorld);
+const drawCharacter=setupCharacter(el('player'),game.player);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
@@ -92,5 +95,5 @@ function frame(now:number) {
   el('proximity').textContent=game.completed?'所有系統已修復':near?'已抵達 · 點擊目前故障標記':'移動至閃爍標記附近';
   requestAnimationFrame(frame);
 }
-function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);drawHitbox(p);}
+function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);drawCharacter(p);drawHitbox(p);}
 render();requestAnimationFrame(frame);
