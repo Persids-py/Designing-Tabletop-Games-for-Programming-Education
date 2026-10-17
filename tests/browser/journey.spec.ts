@@ -46,28 +46,36 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
   await expect(page.locator('#map-image')).toHaveJSProperty('naturalWidth',2752);
+  await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
+  await expect(page.locator('#target-arrow')).toBeVisible();
   await page.screenshot({path:'test-results/01-map.png',fullPage:true});
+  await page.locator('#camera-toggle').click();
   await page.locator('[data-room="room-1"]').click();
   await expect(page.locator('#repair-dialog')).not.toBeVisible();
   await expect(page.locator('#toast')).toContainText('請先靠近');
   await page.locator('[data-room="room-2"]').click();await expect(page.locator('#count')).toHaveText('0 / 10');
+  await page.keyboard.press('m');
+  await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   for(const [i,l] of levels.entries()){
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     if(i===0){
       await page.setViewportSize({width:1150,height:850});
+      await page.clock.runFor(32);
       await page.locator(`[data-room="${l.id}"]`).click();
       await expect(page.locator('#repair-dialog')).toBeVisible();
       const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
       await page.screenshot({path:'test-results/02-repair.png',fullPage:true});
       await page.keyboard.press('Escape');await expect(page.locator('#repair-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('0 / 10');
       await page.setViewportSize({width:1440,height:1000});
+      await page.clock.runFor(32);
     }
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
     await page.getByRole('button',{name:'維修 ↗',exact:true}).click();
     await expect(page.locator('#count')).toHaveText(`${i+1} / 10`);
   }
   await expect(page.locator('#complete-dialog')).toBeVisible();
+  await expect(page.locator('#target-arrow')).toBeHidden();
   await page.screenshot({path:'test-results/03-completed.png',fullPage:true});
   await page.getByRole('button',{name:'重新開始 ↻'}).click();await expect(page.locator('#count')).toHaveText('0 / 10');await expect(page.locator('#target-title')).toHaveText(levels[0].roomName);
   expect(errors).toEqual([]);

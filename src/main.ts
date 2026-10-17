@@ -1,9 +1,11 @@
 import './style.css';
 import './hitbox.css';
+import './camera.css';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
 import {setupHitbox} from './hitbox';
+import {setupCamera} from './camera';
 const game=new Game();
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
@@ -17,7 +19,13 @@ app.innerHTML=`
 <dialog id="complete-dialog" aria-labelledby="complete-title"><p class="eyebrow">任務完成 / MISSION COMPLETE</p><div class="success-symbol">✓</div><h2 id="complete-title">太空船維修完成</h2><p>10 個系統已全數恢復運作。<br>這趟維修旅程，完成了。</p><button id="restart" class="primary">重新開始 <span>↻</span></button></dialog>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const map=el('map');
-const drawHitbox=setupHitbox(map);
+// 圖片、角色、維修點與碰撞疊圖共用一個世界圖層，鏡頭只改變顯示位置。
+const world=document.createElement('div');world.id='map-world';world.className='map-world';
+for(const id of ['map-image','player-layer','markers'])world.append(el(id));
+map.prepend(world);
+document.querySelector('.panel-heading>span:first-child')!.innerHTML='<i class="status-dot"></i>船內探索';
+const camera=setupCamera(map,world,game.player);
+const drawHitbox=setupHitbox(map,world,camera.toWorld);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
@@ -41,7 +49,7 @@ function render() {
   el('target-theme').textContent=game.completed?'太空船恢復運作':game.current.repairTheme;
   el('target-status').textContent=game.completed?'✓ 維修完成':'● 等待維修';
   el('target-help').textContent=game.completed?'你已完成十個維修站。可以重新開始，再次探索。':'靠近地圖上的故障標記，點擊即可開啟維修面板。';
-  el('markers').innerHTML=levels.map((l,i)=>`<button class="marker ${i<game.index?'repaired':i===game.index?'active':'locked'}" style="left:${l.interactionPoint.x/MAP_WIDTH*100}%;top:${l.interactionPoint.y/MAP_HEIGHT*100}%" data-room="${l.id}" aria-label="${i+1}. ${l.roomName}：${i<game.index?'已修復':i===game.index?'目前目標':'未解鎖'}"><span>${i<game.index?'✓':i+1}</span>${i===game.index?'<i class="marker-label">目前目標</i>':''}</button>`).join('');
+  el('markers').innerHTML=levels.map((l,i)=>`<button class="marker ${i<game.index?'repaired':i===game.index?'active':'locked'}" style="left:${l.interactionPoint.x/MAP_WIDTH*100}%;top:${l.interactionPoint.y/MAP_HEIGHT*100}%" data-room="${l.id}" aria-label="${i+1}. ${l.roomName}：${i<game.index?'已修復':i===game.index?'目前目標':'未解鎖'}"><span>${i<game.index?'✓':i===game.index?'!':i+1}</span>${i===game.index?'<i class="marker-label">故障點</i>':''}</button>`).join('');
   el('route').innerHTML=levels.map((l,i)=>`<li class="${i<game.index?'done':i===game.index?'current':''}" ${i===game.index?'aria-current="step"':''}><span class="route-number">${i<game.index?'✓':String(i+1).padStart(2,'0')}</span><span>${l.roomName}</span><span class="route-state">${i<game.index?'完成':i===game.index?'進行中':'·'}</span></li>`).join('');
 }
 el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room]');if(target)openRepair(target.dataset.room!);});
@@ -78,6 +86,7 @@ function frame(now:number) {
     const length=Math.hypot(dx,dy);if(length){dx/=length;dy/=length;game.player=move(game.player,dx*speed*dt,dy*speed*dt);}
   }
   drawPlayer(game.player);
+  camera.update(game.player,game.current?.interactionPoint,game.current?.roomName);
   const near=!game.completed&&game.near(game.current);
   if(near!==wasNear){wasNear=near;map.classList.toggle('in-range',near);}
   el('proximity').textContent=game.completed?'所有系統已修復':near?'已抵達 · 點擊目前故障標記':'移動至閃爍標記附近';

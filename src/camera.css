@@ -1,0 +1,18 @@
+.map-world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.map-world>img{position:absolute;inset:0}
+.map-world #markers{position:absolute;inset:0;pointer-events:none}
+.map-world #markers .marker{pointer-events:auto}
+.map .target-arrow{position:absolute;z-index:9;width:26px;height:26px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 0 8px #f4bd74a0)}
+.target-arrow[hidden]{display:none}
+.direction-triangle{display:block;width:26px;height:26px;clip-path:polygon(8% 4%,100% 50%,8% 96%,28% 50%);background:#ffce79;transform-origin:center}
+.marker.active{border:0;background:none;box-shadow:none;animation:none;width:32px;height:34px;filter:drop-shadow(0 0 7px #ffce7970)}
+.marker.active>span{display:grid;place-items:center;clip-path:polygon(50% 0,100% 100%,0 100%);background:#ffd080;color:#32240f;width:29px;height:29px;padding-top:8px;font-size:14px;font-weight:800}
+.marker.active .marker-label{bottom:39px}
+.in-range .marker.active{box-shadow:none;border:0}
+.in-range .marker.active>span{background:#a8efc7}
+.panel-heading{height:auto;min-height:50px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+.panel-heading>span:first-child{margin-right:auto}
+.panel-heading .map-caption{margin-left:0}
+.map{aspect-ratio:16/10}
+@media(min-width:1200px){.workspace{grid-template-columns:minmax(0,1fr) 250px}.mission-bar{margin-bottom:20px}.map{aspect-ratio:16/9}}
+@media(max-width:740px){.panel-heading .camera-toggle{margin-left:0}.panel-heading .hitbox-toggle{font-size:9px}.map{aspect-ratio:4/3}}
