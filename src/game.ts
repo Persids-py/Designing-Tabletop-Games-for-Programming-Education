@@ -1,11 +1,12 @@
 import { point, spawn, SCALE, type Point } from './map';
+import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 export interface Level {
   id: string; roomName: string; repairTheme: string; concept: string;
   interactionPoint: Point; interactionRadius: number;
-  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'; challengeConfig: null;
+  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'|'alarm'; challengeConfig: null;
 }
 const definitions: [string,string,string,number,number][] = [
-  ['警報燈光室','警報燈光控制器','基礎語法與輸出',1508,353],
+  ['警報燈光室','警報燈光控制器','基礎語法與輸出',1620,169],
   ['發電機室','發電機電壓設定','變數與賦值',1510,780],
   ['維生系統室','維生系統能量計算','資料型態與轉型',746,237],
   ['氣閘艙','氣閘艙壓力檢測','條件判斷',1594,925],
@@ -16,15 +17,20 @@ const definitions: [string,string,string,number,number][] = [
   ['雷達測量室','雷達距離測量儀','例外處理',1894,566],
   ['主躍遷引擎','主躍遷引擎啟動邏輯','綜合邏輯',480,570]
 ];
-export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:'placeholder',challengeConfig:null}));
+export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':'placeholder',challengeConfig:null}));
 export class Game {
   index=0;
   player={...spawn};
   opened: string|null=null;
+  alarm=new AlarmState();
+  alarmTask:AlarmTaskId|null=null;
   get completed() { return this.index===levels.length; }
   get current() { return levels[this.index]; }
+  get navigation(){return this.index===0?{point:this.alarm.next.point,name:this.alarm.next.name,radius:alarmRadius}:this.current?{point:this.current.interactionPoint,name:this.current.roomName,radius:this.current.interactionRadius}:undefined;}
+  get nearTarget(){const target=this.navigation;return !!target&&Math.hypot(this.player.x-target.point.x,this.player.y-target.point.y)<=target.radius;}
   near(level: Level) { return Math.hypot(this.player.x-level.interactionPoint.x,this.player.y-level.interactionPoint.y)<=level.interactionRadius; }
   open(id: string): string|null {
+    if(id===levels[0].id&&this.index===0)return this.openAlarm(this.alarm.next.id);
     const i=levels.findIndex(l=>l.id===id);
     if(i<0) return '找不到維修點';
     if(i<this.index) return '這個系統已修復';
@@ -33,10 +39,26 @@ export class Game {
     this.opened=id;
     return null;
   }
-  close() { this.opened=null; }
-  repair(id: string): boolean {
-    if(this.completed || this.opened!==id || this.current.id!==id || !this.near(this.current)) return false;
-    this.opened=null; this.index++; return true;
+  openAlarm(id:AlarmTaskId):string|null{
+    const task=alarmTasks.find(t=>t.id===id);
+    if(this.index!==0||!task)return '目前沒有這個設備的維修任務';
+    if(id==='verify'&&!this.alarm.ready)return '請先完成三個設備維修，再啟動最終驗證';
+    if(Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>alarmRadius)return '請先靠近故障點，再點擊開啟';
+    this.opened=levels[0].id;this.alarmTask=id;return null;
   }
-  reset() { this.index=0; this.player={...spawn}; this.opened=null; }
+  submitAlarm(id:AlarmTaskId,answer:unknown):AlarmResult{
+    const task=alarmTasks.find(t=>t.id===id);
+    if(this.index!==0||this.opened!==levels[0].id||this.alarmTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>alarmRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
+    return this.alarm.submit(id,answer);
+  }
+  close() { this.opened=null;this.alarmTask=null; }
+  repair(id: string): boolean {
+    if(this.completed || this.opened!==id || this.current.id!==id) return false;
+    if(this.index===0){
+      const console=alarmTasks[3];
+      if(!this.alarm.completed||this.alarmTask!=='verify'||Math.hypot(this.player.x-console.point.x,this.player.y-console.point.y)>alarmRadius)return false;
+    }else if(!this.near(this.current))return false;
+    this.close(); this.index++; return true;
+  }
+  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState(); }
 }

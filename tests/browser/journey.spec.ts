@@ -1,6 +1,7 @@
 import {test,expect,type Page} from '@playwright/test';
 import {levels} from '../../src/game';
 import {MAP_WIDTH,MAP_HEIGHT,SCALE,speed,walkable,move,type Point} from '../../src/map';
+import {alarmTasks,alarmRadius} from '../../src/alarm';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -42,6 +43,58 @@ async function walkTo(page:Page,target:Point){
   }
   const p=await position(page);expect(Math.hypot(p.x-target.x,p.y-target.y),JSON.stringify({p,target})).toBeLessThan(9*SCALE);
 }
+async function solveAlarmRoom(page:Page){
+  for(const task of alarmTasks){
+    for(const p of route(await position(page),task.point,alarmRadius))await walkTo(page,p);
+    await page.locator(`[data-alarm-task="${task.id}"]`).click();
+    await expect(page.locator('#alarm-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
+    await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='computer'){
+      await page.setViewportSize({width:1150,height:850});await page.clock.runFor(32);
+      await page.screenshot({path:'test-results/alarm-01-computer.png',fullPage:true});
+      await page.locator('input[value="B"]').check();await page.getByRole('button',{name:'修復電腦 ↗'}).click();
+      await expect(page.locator('#alarm-feedback')).toContainText('區分大小寫');await expect(page.locator('#count')).toHaveText('0 / 10');
+      await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).not.toBeVisible();
+      await page.locator('[data-alarm-task="computer"]').click();
+      await page.locator('input[value="A"]').check();await page.getByRole('button',{name:'修復電腦 ↗'}).click();
+      await expect(page.locator('.terminal-output')).toHaveText('SYSTEM CHECK');
+      await expect(page.locator('#alarm-scene')).toHaveClass(/computer-online/);
+      await page.setViewportSize({width:1440,height:1000});await page.clock.runFor(32);
+    }else if(task.id==='light'){
+      await page.getByRole('button',{name:'符號 )',exact:true}).click();await page.getByRole('button',{name:'修復警報燈 ↗'}).click();
+      await expect(page.locator('#alarm-feedback')).toContainText('成對');
+      await page.getByRole('button',{name:'符號 "',exact:true}).dragTo(page.locator('#symbol-slot'));
+      await expect(page.locator('#symbol-slot')).toHaveText('"');
+      await page.screenshot({path:'test-results/alarm-02-light.png',fullPage:true});
+      await page.getByRole('button',{name:'修復警報燈 ↗'}).click();
+      await expect(page.locator('#alarm-scene')).toHaveClass(/lights-online/);
+    }else if(task.id==='broadcast'){
+      await page.getByRole('button',{name:'執行 ↗'}).click();await expect(page.locator('#alarm-feedback')).toContainText('不符要求');
+      await page.locator('#broadcast-message').fill('SIREN ON');await page.getByRole('button',{name:'執行 ↗'}).click();
+      await expect(page.locator('.terminal-output')).toHaveText('SIREN ON');await expect(page.locator('#alarm-scene')).toHaveClass(/broadcast-online/);
+    }else{
+      await page.getByRole('button',{name:'啟動警報 ↗'}).click();await expect(page.locator('#alarm-feedback')).toContainText('順序不正確');
+      await expect(page.locator('#count')).toHaveText('0 / 10');
+      await page.locator('#boot-cards li').nth(0).dragTo(page.locator('#boot-cards li').nth(2));
+      await expect(page.locator('#boot-cards li code')).toHaveText(['print("SYSTEM CHECK")','print("RED LIGHT ON")','print("SIREN ON")']);
+      await page.getByRole('button',{name:'上移 SIREN ON',exact:true}).click();
+      await page.getByRole('button',{name:'下移 SIREN ON',exact:true}).click();
+      await page.screenshot({path:'test-results/alarm-04-verify.png',fullPage:true});
+      await page.getByRole('button',{name:'啟動警報 ↗'}).click();
+      await expect(page.locator('#alarm-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('1 / 10');
+      await expect(page.locator('#alarm-scene')).toHaveAttribute('data-stage','repaired');
+      await page.clock.runFor(800);await page.screenshot({path:'test-results/alarm-05-restored.png',fullPage:true});
+      continue;
+    }
+    await expect(page.locator('#count')).toHaveText('0 / 10');
+    await page.getByRole('button',{name:'返回船艙 →'}).click();
+    if(task.id==='computer'){
+      await page.locator('[data-alarm-task="computer"]').click();await expect(page.locator('.device-success')).toContainText('已修復');
+      await page.getByRole('button',{name:'返回船艙 →'}).click();
+    }
+  }
+}
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -54,23 +107,13 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#repair-dialog')).not.toBeVisible();
   await expect(page.locator('#toast')).toContainText('請先靠近');
   await page.locator('[data-room="room-2"]').click();await expect(page.locator('#count')).toHaveText('0 / 10');
+  await page.locator('[data-alarm-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成三個設備');
   await page.keyboard.press('m');
   await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   for(const [i,l] of levels.entries()){
+    if(i===0){await solveAlarmRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
-    if(i===0){
-      await page.setViewportSize({width:1150,height:850});
-      await page.clock.runFor(32);
-      await page.locator(`[data-room="${l.id}"]`).click();
-      await expect(page.locator('#repair-dialog')).toBeVisible();
-      const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
-      await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
-      await page.screenshot({path:'test-results/02-repair.png',fullPage:true});
-      await page.keyboard.press('Escape');await expect(page.locator('#repair-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('0 / 10');
-      await page.setViewportSize({width:1440,height:1000});
-      await page.clock.runFor(32);
-    }
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
     await page.getByRole('button',{name:'維修 ↗',exact:true}).click();
     await expect(page.locator('#count')).toHaveText(`${i+1} / 10`);
@@ -79,5 +122,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#target-arrow')).toBeHidden();
   await page.screenshot({path:'test-results/03-completed.png',fullPage:true});
   await page.getByRole('button',{name:'重新開始 ↻'}).click();await expect(page.locator('#count')).toHaveText('0 / 10');await expect(page.locator('#target-title')).toHaveText(levels[0].roomName);
+  await expect(page.locator('#alarm-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#target-status')).toContainText('0 / 4');
   expect(errors).toEqual([]);
 });

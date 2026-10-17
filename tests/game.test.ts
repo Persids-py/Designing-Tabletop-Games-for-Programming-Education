@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Game,levels} from '../src/game';
+import {alarmTasks,bootOrder,alarmRadius} from '../src/alarm';
 import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE,floors,obstacles,floorIds,obstacleIds} from '../src/map';
 
 test('走廊牆面封閉、氣閘入口位置及移除設備的通行',()=>{
@@ -20,10 +21,15 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
   const g=new Game();
   assert.ok(g.open(levels[0].id));
   assert.equal(g.repair(levels[0].id),false);
+  for(const [i,task] of alarmTasks.slice(0,3).entries()){
+    g.player={...task.point};assert.equal(g.openAlarm(task.id),null);
+    assert.equal(g.submitAlarm(task.id,['A','"','SIREN ON'][i]).success,true);g.close();
+  }
   for(const level of levels){
-    g.player={...level.interactionPoint};
+    g.player={...(g.index===0?alarmTasks[3].point:level.interactionPoint)};
     if(g.index<9)assert.ok(g.open(levels[g.index+1].id));
     assert.equal(g.open(level.id),null);
+    if(g.index===0)assert.equal(g.submitAlarm('verify',[...bootOrder]).success,true);
     g.close();assert.equal(g.repair(level.id),false);
     assert.equal(g.open(level.id),null);
     assert.equal(g.repair(level.id),true);
@@ -36,6 +42,7 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
 test('出生點、維修點與碰撞邊界',()=>{
   assert.ok(walkable(spawn));
   for(const l of levels)assert.ok(walkable(l.interactionPoint),l.roomName+' 互動點不在地板');
+  for(const task of alarmTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   assert.equal(walkable(point(100,100)),false);
   assert.equal(walkable(point(340,550)),false);
   const stop=move(point(660,580),-1000*SCALE,0);
@@ -60,6 +67,7 @@ test('出生點可沿可走區抵達十個維修點',()=>{
       seen.add(k);queue.push([nx,ny]);
     }
   }
-  const missing=levels.filter(l=>!queue.some(([x,y])=>Math.hypot(x*step-l.interactionPoint.x,y*step-l.interactionPoint.y)<l.interactionRadius-10*SCALE));
+  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius}))];
+  const missing=targets.filter(l=>!queue.some(([x,y])=>Math.hypot(x*step-l.interactionPoint.x,y*step-l.interactionPoint.y)<l.interactionRadius-10*SCALE));
   assert.deepEqual(missing.map(l=>l.roomName),[],`無法抵達：${missing.map(l=>l.roomName).join('、')}`);
 });
