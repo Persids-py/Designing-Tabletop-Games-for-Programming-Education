@@ -1,7 +1,20 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Game,levels} from '../src/game';
-import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE} from '../src/map';
+import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE,floors,obstacles,floorIds,obstacleIds} from '../src/map';
+
+test('走廊牆面封閉、氣閘入口位置及移除設備的通行',()=>{
+  assert.equal(walkable(point(750,380)),false,'F6 左側三角牆不得穿越');
+  assert.equal(walkable(point(850,500)),false,'F6 下側三角牆不得穿越');
+  assert.equal(walkable(point(720,545)),true,'F6 西南分支銜接主走廊');
+  assert.equal(walkable(point(980,548)),true,'F6 東南分支銜接主走廊');
+  assert.equal(walkable(point(1510,878)),false,'原 F23 螢幕牆不可通行');
+  assert.equal(walkable(point(1610,825)),true,'實際氣閘入口可通行');
+  assert.equal(walkable(point(600,810)),true,'原 O9 可通行');
+  assert.equal(walkable(point(1800,560)),true,'原 O14 可通行');
+  assert.equal(floorIds.includes(23),false);assert.equal(obstacleIds.includes(9),false);assert.equal(obstacleIds.includes(14),false);
+  assert.equal(floorIds.length,floors.length);assert.equal(obstacleIds.length,obstacles.length);
+});
 
 test('維修順序、遠距限制、關閉與重複結算',()=>{
   const g=new Game();

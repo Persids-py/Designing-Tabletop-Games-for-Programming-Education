@@ -1,4 +1,4 @@
-import { floors, obstacles, MAP_WIDTH, MAP_HEIGHT, radius, inside, walkable, type Point } from './map';
+import { floors, obstacles, floorIds, obstacleIds, MAP_WIDTH, MAP_HEIGHT, radius, inside, walkable, type Point } from './map';
 
 // 直接讀取移動判定用的資料，避免另外畫一份與碰撞邏輯不一致的示意圖。
 export function setupHitbox(map: HTMLElement) {
@@ -11,15 +11,15 @@ export function setupHitbox(map: HTMLElement) {
   layer.id = 'hitbox-layer';
   layer.setAttribute('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
   layer.setAttribute('aria-hidden', 'true');
-  const shapes = (polys: Point[][], prefix: string, kind: string) => polys.map((poly, i) => {
+  const shapes = (polys: Point[][], ids: number[], prefix: string, kind: string) => polys.map((poly, i) => {
     const center = poly.reduce((sum, p) => ({ x: sum.x + p.x / poly.length, y: sum.y + p.y / poly.length }), { x: 0, y: 0 });
-    return `<g class="hitbox-${kind}"><polygon points="${poly.map(p => `${p.x},${p.y}`).join(' ')}"/><text x="${center.x}" y="${center.y}">${prefix}${i + 1}</text></g>`;
+    return `<g class="hitbox-${kind}" data-region="${prefix}${ids[i]}"><polygon points="${poly.map(p => `${p.x},${p.y}`).join(' ')}"/><text x="${center.x}" y="${center.y}">${prefix}${ids[i]}</text></g>`;
   }).join('');
   const samples = Array.from({ length: 8 }, (_, i) => {
     const angle = i * Math.PI / 4;
     return `<circle cx="${Math.cos(angle) * radius}" cy="${Math.sin(angle) * radius}" r="2.5"/>`;
   }).join('');
-  layer.innerHTML = `${shapes(floors, 'F', 'floor')}${shapes(obstacles, 'O', 'obstacle')}<g id="hitbox-probe" visibility="hidden"><circle class="probe-outline" r="${radius}"/>${samples}</g><g id="hitbox-player"><circle class="player-outline" r="${radius}"/>${samples}</g>`;
+  layer.innerHTML = `${shapes(floors, floorIds, 'F', 'floor')}${shapes(obstacles, obstacleIds, 'O', 'obstacle')}<g id="hitbox-probe" visibility="hidden"><circle class="probe-outline" r="${radius}"/>${samples}</g><g id="hitbox-player"><circle class="player-outline" r="${radius}"/>${samples}</g>`;
   map.insertBefore(layer, document.getElementById('player-layer'));
   const help = document.createElement('div');
   help.id = 'hitbox-help'; help.className = 'hitbox-help'; help.hidden = true;
@@ -46,8 +46,8 @@ export function setupHitbox(map: HTMLElement) {
     const allowed = walkable(p);
     probe.setAttribute('transform', `translate(${p.x} ${p.y})`); probe.setAttribute('visibility', 'visible');
     probe.classList.toggle('blocked', !allowed);
-    const f = floors.flatMap((poly, i) => inside(p, poly) ? [`F${i + 1}`] : []);
-    const o = obstacles.flatMap((poly, i) => inside(p, poly) ? [`O${i + 1}`] : []);
+    const f = floors.flatMap((poly, i) => inside(p, poly) ? [`F${floorIds[i]}`] : []);
+    const o = obstacles.flatMap((poly, i) => inside(p, poly) ? [`O${obstacleIds[i]}`] : []);
     readout.textContent = `X ${Math.round(p.x)} / Y ${Math.round(p.y)} · ${allowed ? '角色可站立' : '角色無法站立'} · 地板 ${f.join('、') || '無'} · 障礙 ${o.join('、') || '無'}`;
   });
   map.addEventListener('pointerleave', () => probe.setAttribute('visibility', 'hidden'));
