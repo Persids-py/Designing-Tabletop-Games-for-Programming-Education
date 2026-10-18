@@ -7,7 +7,8 @@ import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
 import {airlockTasks,airlockRadius} from '../../src/airlock';
 import {coolingTasks,coolingRadius} from '../../src/cooling';
 import {boosterTasks,boosterRadius} from '../../src/booster';
-import {cargoTasks,cargoRadius} from '../../src/cargo';
+import {cargoTasks, cargoRadius} from '../../src/cargo';
+import {crewTasks,crewRadius} from '../../src/crew';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -335,6 +336,33 @@ async function solveCargoRoom(page:Page){
   }
 }
 
+async function solveCrewRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-crew-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先修復姓名查詢');await page.keyboard.press('m');
+  for(const task of crewTasks){
+    for(const p of route(await position(page),task.point,crewRadius))await walkTo(page,p);
+    await page.locator(`[data-crew-task="${task.id}"]`).click();await expect(page.locator('#crew-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='lookup'){
+      await page.locator('[data-role="engineer"]').click();await expect(page.locator('#crew-selection')).toContainText('engineer');await page.getByRole('button',{name:'修復姓名查詢 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('KeyError');
+      await page.locator('#crew-key').fill('engineer');await page.screenshot({path:'test-results/crew-01-lookup.png',fullPage:true});await page.getByRole('button',{name:'修復姓名查詢 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('Chen');await expect(page.locator('#crew-scene .holo-name')).toHaveText('Chen');
+    }else if(task.id==='level'){
+      await page.locator('input[name="crew-field"][value="name"]').check();await page.getByRole('button',{name:'讀取授權等級 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('level 欄位');
+      await page.locator('input[name="crew-field"][value="level"]').check();await page.getByRole('button',{name:'讀取授權等級 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('2');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL 2');
+    }else if(task.id==='safe'){
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-crew-task="safe"]').click();
+      await page.locator('input[name="safe-query"][value="A"]').check();await page.getByRole('button',{name:'測試安全查詢 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('KeyError');
+      await page.locator('input[name="safe-query"][value="B"]').check();await page.screenshot({path:'test-results/crew-03-safe.png',fullPage:true});await page.getByRole('button',{name:'測試安全查詢 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('None');await expect(page.locator('#crew-scene .holo-safe')).toContainText('安全查詢正常');
+    }else{
+      await page.locator('#crew-threshold').fill('3');for(const [i,value] of ['GRANTED','DENIED','DENIED'].entries())await page.locator(`input[name="access-${i}"][value="${value}"]`).check();
+      await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('包含 2');await expect(page.locator('#count')).toHaveText('7 / 10');
+      await page.locator('#crew-threshold').fill('2');await page.locator('input[name="access-2"][value="GRANTED"]').check();await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#count')).toHaveText('7 / 10');
+      await page.locator('input[name="access-2"][value="DENIED"]').check();await page.screenshot({path:'test-results/crew-04-verify.png',fullPage:true});await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#crew-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('8 / 10');await expect(page.locator('#target-title')).toHaveText('雷達測量室');await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','authorized');await page.clock.runFor(700);await page.screenshot({path:'test-results/crew-05-authorized.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('7 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -358,6 +386,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===4){await solveCoolingRoom(page);continue;}
     if(i===5){await solveBoosterRoom(page);continue;}
     if(i===6){await solveCargoRoom(page);continue;}
+    if(i===7){await solveCrewRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -376,5 +405,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.cooling-meter text')).toHaveText('100°C · 冷卻故障');
   await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
   await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#cargo-scene [data-crate="B"]')).toHaveCSS('opacity','1');await expect(page.locator('#cargo-scene [data-crate="E"]')).toHaveCSS('opacity','0');
+  await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#crew-scene .holo-name')).toHaveText('---');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL ?');
   expect(errors).toEqual([]);
 });

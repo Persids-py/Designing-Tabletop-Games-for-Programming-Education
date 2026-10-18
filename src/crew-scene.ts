@@ -1,0 +1,8 @@
+import {MAP_WIDTH,MAP_HEIGHT,SCALE} from './map';
+import type {CrewState} from './crew';
+export function setupCrewScene(world:HTMLElement){
+  const layer=document.createElementNS('http://www.w3.org/2000/svg','svg');layer.id='crew-scene';layer.setAttribute('viewBox',`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);layer.setAttribute('aria-hidden','true');
+  layer.innerHTML=`<g transform="scale(${SCALE})"><g class="crew-hologram" transform="translate(1070 266)"><rect width="170" height="130" rx="12"/><g class="crew-avatar"><circle cx="40" cy="44" r="14"/><path d="M15 90 V80 Q16 59 40 59 Q64 59 65 80 V90Z"/></g><text class="holo-title" x="85" y="23">資料查詢中斷</text><text class="holo-name" x="82" y="55">---</text><text class="holo-level" x="82" y="79">LEVEL ?</text><text class="holo-safe" x="85" y="112">等待安全查詢</text></g><g class="crew-authorized"><rect x="1055" y="408" width="205" height="30" rx="6"/><text x="1157" y="428">✓ 維修授權驗證完成</text></g></g>`;
+  world.insertBefore(layer,document.getElementById('player-layer'));
+  return (state:CrewState)=>{layer.dataset.stage=state.completed?'authorized':state.ready?'ready':state.repaired.lookup?'identified':'fault';layer.classList.toggle('crew-identified',state.repaired.lookup);layer.classList.toggle('crew-authorized-online',state.completed);layer.querySelector('.holo-title')!.textContent=state.repaired.lookup?'工程師 / engineer':'資料查詢中斷';layer.querySelector('.holo-name')!.textContent=state.repaired.lookup?'Chen':'---';layer.querySelector('.holo-level')!.textContent=state.repaired.level?'LEVEL 2':'LEVEL ?';layer.querySelector('.holo-safe')!.textContent=state.repaired.safe?'get() 安全查詢正常':'等待安全查詢';};
+}
