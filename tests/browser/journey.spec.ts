@@ -7,6 +7,7 @@ import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
 import {airlockTasks,airlockRadius} from '../../src/airlock';
 import {coolingTasks,coolingRadius} from '../../src/cooling';
 import {boosterTasks,boosterRadius} from '../../src/booster';
+import {cargoTasks,cargoRadius} from '../../src/cargo';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -300,6 +301,40 @@ async function solveBoosterRoom(page:Page){
   }
 }
 
+async function solveCargoRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-cargo-task="index"]').click();await expect(page.locator('#toast')).toContainText('先確認並移除');await page.locator('[data-cargo-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成受損貨箱');await page.keyboard.press('m');
+  for(const task of cargoTasks){
+    for(const p of route(await position(page),task.point,cargoRadius))await walkTo(page,p);
+    await page.locator(`[data-cargo-task="${task.id}"]`).click();await expect(page.locator('#cargo-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='remove'){
+      await page.locator('input[name="damaged-box"][value="A"]').check();await page.getByRole('button',{name:'移除受損貨箱 ↗'}).click();await expect(page.locator('#cargo-feedback')).toContainText('索引從 0');
+      await page.locator('input[name="damaged-box"][value="B"]').check();await page.screenshot({path:'test-results/cargo-01-remove.png',fullPage:true});await page.getByRole('button',{name:'移除受損貨箱 ↗'}).click();
+      await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','removed');await expect(page.locator('#cargo-dialog .cargo-shelf button')).toHaveCount(3);await expect(page.locator('#cargo-dialog .terminal-output')).toContainText('B 氧氣罐');
+    }else if(task.id==='index'){
+      await page.getByRole('button',{name:'修復讀取索引 ↗'}).click();await expect(page.locator('#cargo-feedback')).toContainText('IndexError');
+      await page.getByRole('button',{name:'D 工具箱 索引 2',exact:true}).click();await expect(page.locator('#cargo-index')).toHaveValue('2');await expect(page.locator('#shelf-inspection')).toContainText('索引 2');
+      await page.screenshot({path:'test-results/cargo-02-index.png',fullPage:true});await page.getByRole('button',{name:'修復讀取索引 ↗'}).click();await expect(page.locator('#cargo-dialog .terminal-output')).toHaveText('D 工具箱');
+    }else if(task.id==='insert'){
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-cargo-task="insert"]').click();
+      await page.locator('#cargo-insert').fill('2');await page.getByRole('button',{name:'執行入庫 ↗'}).click();await expect(page.locator('#cargo-feedback')).toContainText('索引 1');
+      await page.locator('#cargo-insert').fill('1');await page.getByRole('button',{name:'執行入庫 ↗'}).click();await expect(page.locator('#cargo-dialog .cargo-shelf strong')).toHaveText(['A','E','C','D']);await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','inserted');
+    }else{
+      await page.locator('#cargo-count').fill('3');await page.locator('input[name="pickup"][value="D"]').check();await page.getByRole('button',{name:'驗證並領取物資 ↗'}).click();await expect(page.locator('#cargo-feedback')).toContainText('總數');await expect(page.locator('#count')).toHaveText('6 / 10');
+      await page.locator('#cargo-count').fill('4');
+      await page.locator('#cargo-order li[data-box="A"]').dragTo(page.locator('#cargo-order li[data-box="D"]'));
+      await page.locator('#cargo-order li[data-box="E"]').dragTo(page.locator('#cargo-order li[data-box="D"]'));
+      await page.getByRole('button',{name:'右移 D 工具箱',exact:true}).click();await expect(page.locator('#cargo-order li code')).toHaveText(['A 電池','E 保險絲','C 晶片','D 工具箱']);
+      await page.getByRole('button',{name:'左移 D 工具箱',exact:true}).click();await page.getByRole('button',{name:'右移 D 工具箱',exact:true}).click();
+      await page.locator('input[name="pickup"][value="C"]').check();await page.getByRole('button',{name:'驗證並領取物資 ↗'}).click();await expect(page.locator('#count')).toHaveText('6 / 10');
+      await page.locator('input[name="pickup"][value="D"]').check();await page.screenshot({path:'test-results/cargo-04-verify.png',fullPage:true});await page.getByRole('button',{name:'驗證並領取物資 ↗'}).click();
+      await expect(page.locator('#cargo-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('7 / 10');await expect(page.locator('#target-title')).toHaveText('船員資料庫');await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','shipped');
+      await page.clock.runFor(1200);await expect(page.locator('#cargo-scene [data-crate="D"] .crate-index')).toHaveText('出庫');await page.screenshot({path:'test-results/cargo-05-shipped.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('6 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -322,6 +357,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===3){await solveAirlockRoom(page);continue;}
     if(i===4){await solveCoolingRoom(page);continue;}
     if(i===5){await solveBoosterRoom(page);continue;}
+    if(i===6){await solveCargoRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -339,5 +375,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力警示');
   await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.cooling-meter text')).toHaveText('100°C · 冷卻故障');
   await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
+  await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#cargo-scene [data-crate="B"]')).toHaveCSS('opacity','1');await expect(page.locator('#cargo-scene [data-crate="E"]')).toHaveCSS('opacity','0');
   expect(errors).toEqual([]);
 });
