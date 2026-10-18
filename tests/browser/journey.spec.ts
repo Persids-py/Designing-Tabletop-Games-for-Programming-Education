@@ -3,6 +3,7 @@ import {levels} from '../../src/game';
 import {MAP_WIDTH,MAP_HEIGHT,SCALE,speed,walkable,move,type Point} from '../../src/map';
 import {alarmTasks,alarmRadius} from '../../src/alarm';
 import {generatorTasks,generatorRadius} from '../../src/generator';
+import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -141,6 +142,50 @@ async function solveGeneratorRoom(page:Page){
   }
 }
 
+async function solveLifeSupportRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-life-support-task="verify"]').click();
+  await expect(page.locator('#toast')).toContainText('先完成三項能源計算');await page.keyboard.press('m');
+  for(const [i,task] of lifeSupportTasks.entries()){
+    for(const p of route(await position(page),task.point,lifeSupportRadius))await walkTo(page,p);
+    await page.locator(`[data-life-support-task="${task.id}"]`).click();await expect(page.locator('#life-support-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
+    await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='main'){
+      await page.screenshot({path:'test-results/life-support-01-main.png',fullPage:true});
+      await page.getByRole('button',{name:'修復主能源 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('TypeError');
+      await expect(page.locator('#count')).toHaveText('2 / 10');
+      await page.locator('#main-energy-code').fill('total = int(main_energy) + aux_energy');
+      await page.getByRole('button',{name:'修復主能源 ↗'}).click();await expect(page.locator('#life-support-dialog .terminal-output')).toHaveText('120');
+      await expect(page.locator('#life-support-scene [data-tank="0"]')).toHaveAttribute('data-online','true');
+    }else if(task.id==='used'){
+      await page.getByRole('button',{name:'更新消耗計算 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('扣除 used');
+      await page.getByRole('button',{name:'運算子 -',exact:true}).click();await expect(page.locator('#operator-preview')).toHaveText('-');
+      await page.getByRole('button',{name:'更新消耗計算 ↗'}).click();await expect(page.locator('#life-support-dialog .terminal-output')).toHaveText('105');
+    }else if(task.id==='backup'){
+      await page.getByRole('button',{name:'修復備用能源 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('重複文字');
+      await page.keyboard.press('Escape');await expect(page.locator('#life-support-dialog')).not.toBeVisible();await expect(page.locator('#target-status')).toContainText('2 / 4');
+      await page.locator('[data-life-support-task="backup"]').click();await page.locator('#backup-energy-code').fill('backup_energy = int(backup) * cells');
+      await page.screenshot({path:'test-results/life-support-03-backup.png',fullPage:true});
+      await page.getByRole('button',{name:'修復備用能源 ↗'}).click();await expect(page.locator('#life-support-dialog .terminal-output')).toHaveText('50');
+    }else{
+      await page.locator('#available-expression').fill('155');await page.getByRole('button',{name:'能源檢測 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('不要直接填答案');
+      await page.locator('#available-expression').fill('120 + 15 + 50');await page.getByRole('button',{name:'能源檢測 ↗'}).click();await expect(page.locator('#count')).toHaveText('2 / 10');
+      await page.locator('#available-expression').fill('120 - 15 + 50');await page.screenshot({path:'test-results/life-support-04-verify.png',fullPage:true});
+      await page.getByRole('button',{name:'能源檢測 ↗'}).click();await expect(page.locator('#life-support-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('3 / 10');await expect(page.locator('#target-title')).toHaveText('氣閘艙');
+      await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','restored');
+      await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(3);await expect(page.locator('#life-support-scene .life-monitor text')).toHaveText('可用能源 155');
+      await page.clock.runFor(600);await page.screenshot({path:'test-results/life-support-05-restored.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('2 / 10');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(i+1);
+    await page.getByRole('button',{name:'返回船艙 →'}).click();
+    if(task.id==='main'){
+      await page.locator('[data-life-support-task="main"]').click();await expect(page.locator('#life-support-dialog .device-success')).toContainText('已修復');
+      await page.getByRole('button',{name:'返回船艙 →'}).click();
+    }
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -159,6 +204,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   for(const [i,l] of levels.entries()){
     if(i===0){await solveAlarmRoom(page);continue;}
     if(i===1){await solveGeneratorRoom(page);continue;}
+    if(i===2){await solveLifeSupportRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -172,5 +218,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#alarm-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#target-status')).toContainText('0 / 4');
   await expect(page.locator('#generator-scene')).toHaveAttribute('data-stage','fault');
   await expect(page.locator('#generator-scene .main-meter text')).toHaveText('---');await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('---');
+  await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {Game,levels} from '../src/game';
 import {alarmTasks,bootOrder,alarmRadius} from '../src/alarm';
 import {generatorTasks,generatorRadius,assignmentOrder} from '../src/generator';
+import {lifeSupportTasks,lifeSupportRadius} from '../src/life-support';
 import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE,floors,obstacles,floorIds,obstacleIds} from '../src/map';
 
 test('走廊牆面封閉、氣閘入口位置及移除設備的通行',()=>{
@@ -31,11 +32,16 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
       g.player={...task.point};assert.equal(g.openGenerator(task.id),null);
       assert.equal(g.submitGenerator(task.id,[[...assignmentOrder],'backup_voltage','print(target_voltage)'][i]).success,true);g.close();
     }}
-    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:level.interactionPoint)};
+    if(g.index===2){for(const [i,task] of lifeSupportTasks.slice(0,3).entries()){
+      g.player={...task.point};assert.equal(g.openLifeSupport(task.id),null);
+      assert.equal(g.submitLifeSupport(task.id,['total = int(main_energy) + aux_energy','-','backup_energy = int(backup) * cells'][i]).success,true);g.close();
+    }}
+    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:g.index===2?lifeSupportTasks[3].point:level.interactionPoint)};
     if(g.index<9)assert.ok(g.open(levels[g.index+1].id));
     assert.equal(g.open(level.id),null);
     if(g.index===0)assert.equal(g.submitAlarm('verify',[...bootOrder]).success,true);
     if(g.index===1)assert.equal(g.submitGenerator('verify','B').success,true);
+    if(g.index===2)assert.equal(g.submitLifeSupport('verify','120 - 15 + 50').success,true);
     g.close();assert.equal(g.repair(level.id),false);
     assert.equal(g.open(level.id),null);
     assert.equal(g.repair(level.id),true);
@@ -50,6 +56,7 @@ test('出生點、維修點與碰撞邊界',()=>{
   for(const l of levels)assert.ok(walkable(l.interactionPoint),l.roomName+' 互動點不在地板');
   for(const task of alarmTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   for(const task of generatorTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
+  for(const task of lifeSupportTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   assert.equal(walkable(point(100,100)),false);
   assert.equal(walkable(point(340,550)),false);
   const stop=move(point(660,580),-1000*SCALE,0);
@@ -74,7 +81,7 @@ test('出生點可沿可走區抵達十個維修點',()=>{
       seen.add(k);queue.push([nx,ny]);
     }
   }
-  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius}))];
+  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius})),...lifeSupportTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:lifeSupportRadius}))];
   const missing=targets.filter(l=>!queue.some(([x,y])=>Math.hypot(x*step-l.interactionPoint.x,y*step-l.interactionPoint.y)<l.interactionRadius-10*SCALE));
   assert.deepEqual(missing.map(l=>l.roomName),[],`無法抵達：${missing.map(l=>l.roomName).join('、')}`);
 });
