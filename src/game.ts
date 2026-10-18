@@ -2,16 +2,17 @@ import { point, spawn, SCALE, type Point } from './map';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
+import {AirlockState,airlockTasks,airlockRadius,type AirlockTaskId} from './airlock';
 export interface Level {
   id: string; roomName: string; repairTheme: string; concept: string;
   interactionPoint: Point; interactionRadius: number;
-  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'|'alarm'|'generator'|'life-support'; challengeConfig: null;
+  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'|'alarm'|'generator'|'life-support'|'airlock'; challengeConfig: null;
 }
 const definitions: [string,string,string,number,number][] = [
   ['警報燈光室','警報燈光控制器','基礎語法與輸出',1620,169],
   ['發電機室','發電機電壓設定','變數與賦值',1400,775],
   ['維生系統室','維生系統能量計算','資料型態與轉型',643,180],
-  ['氣閘艙','氣閘艙壓力檢測','條件判斷',1594,925],
+  ['氣閘艙','氣閘艙壓力檢測','條件判斷',1535,920],
   ['引擎冷凝室','引擎冷凝液循環','迴圈控制',520,298],
   ['副推進器室','副推進器運算模組','函式設計與回傳',761,866],
   ['資材庫存室','資材庫存探測器','陣列與串列',1205,905],
@@ -19,7 +20,7 @@ const definitions: [string,string,string,number,number][] = [
   ['雷達測量室','雷達距離測量儀','例外處理',1894,566],
   ['主躍遷引擎','主躍遷引擎啟動邏輯','綜合邏輯',480,570]
 ];
-export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':i===1?'generator':i===2?'life-support':'placeholder',challengeConfig:null}));
+export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':i===1?'generator':i===2?'life-support':i===3?'airlock':'placeholder',challengeConfig:null}));
 export class Game {
   index=0;
   player={...spawn};
@@ -30,12 +31,15 @@ export class Game {
   generatorTask:GeneratorTaskId|null=null;
   lifeSupport=new LifeSupportState();
   lifeSupportTask:LifeSupportTaskId|null=null;
+  airlock=new AirlockState();
+  airlockTask:AirlockTaskId|null=null;
   get completed() { return this.index===levels.length; }
   get current() { return levels[this.index]; }
   get navigation(){
     if(this.index===0)return {point:this.alarm.next.point,name:this.alarm.next.name,radius:alarmRadius};
     if(this.index===1)return {point:this.generator.next.point,name:this.generator.next.name,radius:generatorRadius};
     if(this.index===2)return {point:this.lifeSupport.next.point,name:this.lifeSupport.next.name,radius:lifeSupportRadius};
+    if(this.index===3)return {point:this.airlock.next.point,name:this.airlock.next.name,radius:airlockRadius};
     return this.current?{point:this.current.interactionPoint,name:this.current.roomName,radius:this.current.interactionRadius}:undefined;
   }
   get nearTarget(){const target=this.navigation;return !!target&&Math.hypot(this.player.x-target.point.x,this.player.y-target.point.y)<=target.radius;}
@@ -44,6 +48,7 @@ export class Game {
     if(id===levels[0].id&&this.index===0)return this.openAlarm(this.alarm.next.id);
     if(id===levels[1].id&&this.index===1)return this.openGenerator(this.generator.next.id);
     if(id===levels[2].id&&this.index===2)return this.openLifeSupport(this.lifeSupport.next.id);
+    if(id===levels[3].id&&this.index===3)return this.openAirlock(this.airlock.next.id);
     const i=levels.findIndex(l=>l.id===id);
     if(i<0) return '找不到維修點';
     if(i<this.index) return '這個系統已修復';
@@ -88,7 +93,19 @@ export class Game {
     if(this.index!==2||this.opened!==levels[2].id||this.lifeSupportTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>lifeSupportRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
     return this.lifeSupport.submit(id,answer);
   }
-  close() { this.opened=null;this.alarmTask=null;this.generatorTask=null;this.lifeSupportTask=null; }
+  openAirlock(id:AirlockTaskId):string|null{
+    const task=airlockTasks.find(t=>t.id===id);
+    if(this.index!==3||!task)return '目前沒有這個設備的維修任務';
+    const blocked=this.airlock.blocked(id);if(blocked)return blocked;
+    if(Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>airlockRadius)return '請先靠近故障點，再點擊開啟';
+    this.opened=levels[3].id;this.airlockTask=id;return null;
+  }
+  submitAirlock(id:AirlockTaskId,answer:unknown):AlarmResult{
+    const task=airlockTasks.find(t=>t.id===id);
+    if(this.index!==3||this.opened!==levels[3].id||this.airlockTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>airlockRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
+    return this.airlock.submit(id,answer);
+  }
+  close() { this.opened=null;this.alarmTask=null;this.generatorTask=null;this.lifeSupportTask=null;this.airlockTask=null; }
   repair(id: string): boolean {
     if(this.completed || this.opened!==id || this.current.id!==id) return false;
     if(this.index===0){
@@ -100,8 +117,12 @@ export class Game {
     }else if(this.index===2){
       const console=lifeSupportTasks[3];
       if(!this.lifeSupport.completed||this.lifeSupportTask!=='verify'||Math.hypot(this.player.x-console.point.x,this.player.y-console.point.y)>lifeSupportRadius)return false;
+    }else if(this.index===3){
+      const console=airlockTasks[3];
+      if(!this.airlock.completed||this.airlockTask!=='verify'||Math.hypot(this.player.x-console.point.x,this.player.y-console.point.y)>airlockRadius)return false;
+      this.airlock.unlocked=true;
     }else if(!this.near(this.current))return false;
     this.close(); this.index++; return true;
   }
-  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState(); }
+  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState();this.airlock=new AirlockState(); }
 }

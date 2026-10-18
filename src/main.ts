@@ -5,6 +5,10 @@ import './character.css';
 import './alarm.css';
 import './generator.css';
 import './life-support.css';
+import './airlock.css';
+import {airlockTasks,type AirlockTaskId} from './airlock';
+import {setupAirlockUI} from './airlock-ui';
+import {setupAirlockScene} from './airlock-scene';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
@@ -44,12 +48,14 @@ const drawCharacter=setupCharacter(el('player'),game.player);
 const drawAlarmScene=setupAlarmScene(world,mapUrl);
 const drawGeneratorScene=setupGeneratorScene(world);
 const drawLifeSupportScene=setupLifeSupportScene(world);
+const drawAirlockScene=setupAirlockScene(world);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
 const alarmUI=setupAlarmUI(game,{changed:render,completed:()=>afterRepair('警報燈光室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const generatorUI=setupGeneratorUI(game,{changed:render,completed:()=>afterRepair('發電機室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const lifeSupportUI=setupLifeSupportUI(game,{changed:render,completed:()=>afterRepair('維生系統室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
+const airlockUI=setupAirlockUI(game,{changed:render,completed:()=>afterRepair('氣閘艙'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 let toastTimer:ReturnType<typeof setTimeout>;
 function toast(message:string) { el('toast').textContent=message;el('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('visible'),3200); }
 function closeRepair() { game.close();repairDialog.close();keys.clear();map.focus({preventScroll:true}); }
@@ -57,6 +63,7 @@ function openRepair(id:string) {
   if(id==='room-1'&&game.index===0){alarmUI.open(game.alarm.next.id);keys.clear();return;}
   if(id==='room-2'&&game.index===1){generatorUI.open(game.generator.next.id);keys.clear();return;}
   if(id==='room-3'&&game.index===2){lifeSupportUI.open(game.lifeSupport.next.id);keys.clear();return;}
+  if(id==='room-4'&&game.index===3){airlockUI.open(game.airlock.next.id);keys.clear();return;}
   const error=game.open(id);if(error){toast(error);return;}
   keys.clear(); const level=game.current;
   el('dialog-step').textContent=`維修站 ${String(game.index+1).padStart(2,'0')} / 10`;
@@ -68,7 +75,8 @@ function render() {
   drawAlarmScene(game.alarm);
   drawGeneratorScene(game.generator);
   drawLifeSupportScene(game.lifeSupport);
-  document.querySelector('.controls>span')!.textContent=game.index===0?'第一關 · 警報系統維修':game.index===1?'第二關 · 供電系統維修':game.index===2?'第三關 · 維生能源修復':'太空船維修任務';
+  drawAirlockScene(game.airlock);
+  document.querySelector('.controls>span')!.textContent=game.index===0?'第一關 · 警報系統維修':game.index===1?'第二關 · 供電系統維修':game.index===2?'第三關 · 維生能源修復':game.index===3?'第四關 · 氣閘安全修復':'太空船維修任務';
   el('count').innerHTML=`${game.index} <small>/ 10</small>`;
   el('progress').style.width=`${game.index*10}%`;
   el('progress-note').textContent=game.completed?'所有系統運作正常':`尚有 ${10-game.index} 個系統等待修復`;
@@ -91,6 +99,11 @@ function render() {
     el('target-theme').textContent=`下一個設備：${game.lifeSupport.next.name}`;
     el('target-status').textContent=`● 設備修復 ${game.lifeSupport.count} / 4`;
     el('target-help').textContent=game.lifeSupport.ready?'三項能源計算已修復。前往驗證台，計算最後可用能源。':'修復型態與運算方式，讓三個能源槽恢復正常；三項完成後才能進行總驗證。';
+  }
+  if(game.index===3){
+    el('target-theme').textContent=`下一個設備：${game.airlock.next.name}`;
+    el('target-status').textContent=`● 設備修復 ${game.airlock.count} / 4`;
+    el('target-help').textContent=game.airlock.ready?'三項指令已修好。測試 120、100、80 kPa 的安全判斷，通過後解除封鎖。':'修復冒號、縮排與 else 指令。高壓鎖門，正常壓力允許開門。';
   }
   el('markers').innerHTML=levels.map((l,i)=>`<button class="marker ${i<game.index?'repaired':i===game.index?'active':'locked'}" style="left:${l.interactionPoint.x/MAP_WIDTH*100}%;top:${l.interactionPoint.y/MAP_HEIGHT*100}%" data-room="${l.id}" aria-label="${i+1}. ${l.roomName}：${i<game.index?'已修復':i===game.index?'目前目標':'未解鎖'}"><span>${i<game.index?'✓':i===game.index?'!':i+1}</span>${i===game.index?'<i class="marker-label">故障點</i>':''}</button>`).join('');
   el('route').innerHTML=levels.map((l,i)=>`<li class="${i<game.index?'done':i===game.index?'current':''}" ${i===game.index?'aria-current="step"':''}><span class="route-number">${i<game.index?'✓':String(i+1).padStart(2,'0')}</span><span>${l.roomName}</span><span class="route-state">${i<game.index?'完成':i===game.index?'進行中':'·'}</span></li>`).join('');
@@ -115,8 +128,15 @@ function render() {
       return `<button class="marker life-support-device ${repaired?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-life-support-task="${task.id}" ${i===0?'data-room="room-3"':''} aria-label="${task.name}：${repaired?'已修復':locked?'尚未解鎖':'等待維修'}"><span>${repaired?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
     }).join(''));
   }
+  if(game.index===3){
+    el('markers').querySelector('[data-room="room-4"]')?.remove();
+    el('markers').insertAdjacentHTML('beforeend',airlockTasks.map((task,i)=>{
+      const repaired=game.airlock.repaired[task.id],locked=!!game.airlock.blocked(task.id),active=task.id===game.airlock.next.id;
+      return `<button class="marker airlock-device ${repaired?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-airlock-task="${task.id}" ${i===0?'data-room="room-4"':''} aria-label="${task.name}：${repaired?'已修復':locked?'尚未解鎖':'等待維修'}"><span>${repaired?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
+    }).join(''));
+  }
 }
-el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else openRepair(target.dataset.room!);});
+el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else openRepair(target.dataset.room!);});
 el('close-dialog').onclick=closeRepair;
 repairDialog.addEventListener('cancel',event=>{event.preventDefault();closeRepair();});
 el('repair').onclick=()=>{
@@ -135,7 +155,7 @@ const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowrigh
 document.addEventListener('keydown',event=>{
   if((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]'))return;
   const key=event.key.toLowerCase();
-  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open){event.preventDefault();keys.add(key);}
+  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open){event.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));
 window.addEventListener('blur',()=>keys.clear());

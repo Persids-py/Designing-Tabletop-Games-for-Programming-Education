@@ -4,6 +4,7 @@ import {MAP_WIDTH,MAP_HEIGHT,SCALE,speed,walkable,move,type Point} from '../../s
 import {alarmTasks,alarmRadius} from '../../src/alarm';
 import {generatorTasks,generatorRadius} from '../../src/generator';
 import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
+import {airlockTasks,airlockRadius} from '../../src/airlock';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -186,6 +187,52 @@ async function solveLifeSupportRoom(page:Page){
   }
 }
 
+async function solveAirlockRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-airlock-task="verify"]').click();
+  await expect(page.locator('#toast')).toContainText('先修好冒號');await page.keyboard.press('m');
+  for(const task of airlockTasks){
+    for(const p of route(await position(page),task.point,airlockRadius))await walkTo(page,p);
+    await page.locator(`[data-airlock-task="${task.id}"]`).click();await expect(page.locator('#airlock-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
+    await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='colon'){
+      await page.getByRole('button',{name:'符號 ;',exact:true}).click();await page.getByRole('button',{name:'修復壓力判斷 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('SyntaxError');
+      await page.getByRole('button',{name:'符號 :',exact:true}).dragTo(page.locator('#colon-slot'));
+      await expect(page.locator('#colon-slot')).toHaveText(':');await page.screenshot({path:'test-results/airlock-01-colon.png',fullPage:true});
+      await page.getByRole('button',{name:'修復壓力判斷 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('LOCK');
+    }else if(task.id==='indent'){
+      await page.getByRole('button',{name:'修復縮排 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('IndentationError');
+      await page.getByRole('button',{name:'向右縮排 →'}).click();await expect(page.locator('#indent-count')).toHaveText('4 個空格');
+      await page.getByRole('button',{name:'← 向左縮排'}).click();await expect(page.locator('#indent-count')).toHaveText('0 個空格');
+      await page.locator('#indent-line').dragTo(page.locator('#indent-zone'),{targetPosition:{x:400,y:20}});
+      await expect(page.locator('#indent-line')).toHaveText('    print("壓力過高")',{useInnerText:false});
+      await expect(page.locator('#indent-count')).toHaveText('4 個空格');await page.screenshot({path:'test-results/airlock-02-indent.png',fullPage:true});
+      await page.getByRole('button',{name:'修復縮排 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('壓力過高');
+    }else if(task.id==='branch'){
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');
+      await page.locator('[data-airlock-task="branch"]').click();await page.locator('#open-code').fill('print("LOCK")');
+      await page.getByRole('button',{name:'修復正常壓力 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('應輸出 OPEN');
+      await page.locator('#open-code').fill('print("OPEN")');await page.getByRole('button',{name:'修復正常壓力 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('OPEN');
+      await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','ready');
+    }else{
+      await expect(page.getByRole('button',{name:'解除封鎖 →'})).toBeDisabled();
+      for(const [i,value] of ['LOCK','LOCK','OPEN'].entries())await page.locator(`input[name="case-${i}"][value="${value}"]`).check();
+      await page.getByRole('button',{name:'執行壓力測試 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('100 的邊界');
+      await expect(page.getByRole('button',{name:'解除封鎖 →'})).toBeDisabled();await expect(page.locator('#count')).toHaveText('3 / 10');
+      await page.locator('input[name="case-1"][value="OPEN"]').check();await page.screenshot({path:'test-results/airlock-04-test.png',fullPage:true});
+      await page.getByRole('button',{name:'執行壓力測試 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toContainText('100 kPa → OPEN');
+      await expect(page.getByRole('button',{name:'解除封鎖 →'})).toBeEnabled();await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','tested');
+      await page.keyboard.press('Escape');await page.locator('[data-airlock-task="verify"]').click();
+      await expect(page.getByRole('button',{name:'解除封鎖 →'})).toBeEnabled();await expect(page.locator('#count')).toHaveText('3 / 10');
+      await page.getByRole('button',{name:'解除封鎖 →'}).click();await expect(page.locator('#airlock-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('4 / 10');await expect(page.locator('#target-title')).toHaveText('引擎冷凝室');
+      await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','unlocked');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力正常');
+      await page.clock.runFor(700);await page.screenshot({path:'test-results/airlock-05-unlocked.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('3 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -205,6 +252,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===0){await solveAlarmRoom(page);continue;}
     if(i===1){await solveGeneratorRoom(page);continue;}
     if(i===2){await solveLifeSupportRoom(page);continue;}
+    if(i===3){await solveAirlockRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -219,5 +267,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#generator-scene')).toHaveAttribute('data-stage','fault');
   await expect(page.locator('#generator-scene .main-meter text')).toHaveText('---');await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('---');
   await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(0);
+  await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力警示');
   expect(errors).toEqual([]);
 });
