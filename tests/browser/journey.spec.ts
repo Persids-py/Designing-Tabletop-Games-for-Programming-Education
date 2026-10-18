@@ -9,6 +9,7 @@ import {coolingTasks,coolingRadius} from '../../src/cooling';
 import {boosterTasks,boosterRadius} from '../../src/booster';
 import {cargoTasks, cargoRadius} from '../../src/cargo';
 import {crewTasks,crewRadius} from '../../src/crew';
+import {radarTasks,radarRadius} from '../../src/radar';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -363,6 +364,34 @@ async function solveCrewRoom(page:Page){
   }
 }
 
+async function solveRadarRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-radar-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成錯誤分析');await page.keyboard.press('m');
+  for(const task of radarTasks){
+    for(const p of route(await position(page),task.point,radarRadius))await walkTo(page,p);
+    await page.locator(`[data-radar-task="${task.id}"]`).click();await expect(page.locator('#radar-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='error'){
+      await page.locator('input[name="radar-error"][value="A"]').check();await page.getByRole('button',{name:'分析雷達錯誤 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('ValueError');
+      await page.locator('input[name="radar-error"][value="C"]').check();await page.screenshot({path:'test-results/radar-01-error.png',fullPage:true});await page.getByRole('button',{name:'分析雷達錯誤 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toContainText('雜訊');
+    }else if(task.id==='blocks'){
+      await page.locator('[data-block="try:"]').click();await page.locator('[data-slot="0"]').click();await page.locator('[data-block="else:"]').click();await page.locator('[data-slot="1"]').click();await page.getByRole('button',{name:'修復例外處理 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('except ValueError:');
+      await page.locator('[data-block="except ValueError:"]').dragTo(page.locator('[data-slot="1"]'));await expect(page.locator('[data-slot="0"]')).toHaveText('try:');await expect(page.locator('[data-slot="1"]')).toHaveText('except ValueError:');await page.screenshot({path:'test-results/radar-02-blocks.png',fullPage:true});
+      await page.getByRole('button',{name:'修復例外處理 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toContainText('40');
+    }else if(task.id==='sum'){
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-radar-task="sum"]').click();
+      for(let i=0;i<5;i++)await page.locator(`input[name="signal-${i}"][value="valid"]`).check();await page.locator('#signal-total').fill('50');await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('五張分類');
+      for(const i of [1,3])await page.locator(`input[name="signal-${i}"][value="noise"]`).check();await page.locator('#signal-total').fill('40');await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#count')).toHaveText('8 / 10');
+      await page.locator('#signal-total').fill('50');await page.screenshot({path:'test-results/radar-03-sum.png',fullPage:true});await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toHaveText('有效訊號總和：50');
+    }else{
+      for(const [i,value] of ['50','2','0','2'].entries())await page.locator(`input[name="output-${i}"]`).fill(value);await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('errors += 1');
+      await page.locator('#radar-counter').fill('errors += 1');await page.locator('input[name="output-3"]').fill('0');await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#count')).toHaveText('8 / 10');
+      await page.locator('input[name="output-3"]').fill('2');await page.screenshot({path:'test-results/radar-04-verify.png',fullPage:true});await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#radar-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('9 / 10');await expect(page.locator('#target-title')).toHaveText('主躍遷引擎');await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','restored');await expect(page.locator('.radar-noise')).toBeHidden();await expect(page.locator('.radar-monitor text')).toHaveText('有效總和 50 · 異常 2');await page.clock.runFor(800);await page.screenshot({path:'test-results/radar-05-restored.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('8 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -387,6 +416,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===5){await solveBoosterRoom(page);continue;}
     if(i===6){await solveCargoRoom(page);continue;}
     if(i===7){await solveCrewRoom(page);continue;}
+    if(i===8){await solveRadarRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -406,5 +436,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
   await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#cargo-scene [data-crate="B"]')).toHaveCSS('opacity','1');await expect(page.locator('#cargo-scene [data-crate="E"]')).toHaveCSS('opacity','0');
   await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#crew-scene .holo-name')).toHaveText('---');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL ?');
+  await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#radar-scene')).not.toHaveClass(/radar-restored/);
   expect(errors).toEqual([]);
 });
