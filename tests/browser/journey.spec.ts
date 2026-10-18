@@ -6,6 +6,7 @@ import {generatorTasks,generatorRadius} from '../../src/generator';
 import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
 import {airlockTasks,airlockRadius} from '../../src/airlock';
 import {coolingTasks,coolingRadius} from '../../src/cooling';
+import {boosterTasks,boosterRadius} from '../../src/booster';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -268,6 +269,37 @@ async function solveCoolingRoom(page:Page){
   }
 }
 
+async function solveBoosterRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-booster-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先修復函式宣告');await page.keyboard.press('m');
+  for(const task of boosterTasks){
+    for(const p of route(await position(page),task.point,boosterRadius))await walkTo(page,p);
+    await page.locator(`[data-booster-task="${task.id}"]`).click();await expect(page.locator('#booster-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='declaration'){
+      await page.getByRole('button',{name:'符號 ;',exact:true}).click();await page.getByRole('button',{name:'修復函式宣告 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('SyntaxError');
+      await page.getByRole('button',{name:'符號 :',exact:true}).dragTo(page.locator('#def-slot'));await expect(page.locator('#def-slot')).toHaveText(':');await page.screenshot({path:'test-results/booster-01-declaration.png',fullPage:true});
+      await page.getByRole('button',{name:'修復函式宣告 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toHaveText('函式宣告成立');
+    }else if(task.id==='formula'){
+      await page.getByRole('button',{name:'修復推力公式 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('3 倍');
+      await page.getByRole('button',{name:'運算子 *',exact:true}).click();await expect(page.locator('#booster-operator')).toHaveText('*');await page.getByRole('button',{name:'修復推力公式 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toContainText('60');
+    }else if(task.id==='return'){
+      await page.getByRole('button',{name:'修復推力回傳 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('None');
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-booster-task="return"]').click();
+      await page.locator('#return-code').fill('return power');await page.screenshot({path:'test-results/booster-03-return.png',fullPage:true});await page.getByRole('button',{name:'修復推力回傳 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toHaveText('thrust = 60');
+    }else{
+      await page.locator('#thrust-output').fill('60');await page.getByRole('button',{name:'測試低速模式 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('速度為 0');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
+      await page.locator('#thrust-output').fill('0');await page.getByRole('button',{name:'測試低速模式 ↗'}).click();await expect(page.locator('#booster-scene .online')).toHaveCount(1);await expect(page.locator('#count')).toHaveText('5 / 10');
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('推力測試 1 / 3');await page.locator('[data-booster-task="verify"]').click();await expect(page.locator('.booster-modes .done')).toHaveCount(1);
+      await page.locator('#thrust-output').fill('0');await page.getByRole('button',{name:'測試中速模式 ↗'}).click();await expect(page.locator('#booster-scene .online')).toHaveCount(1);
+      await page.locator('#thrust-output').fill('30');await page.getByRole('button',{name:'測試中速模式 ↗'}).click();await expect(page.locator('#booster-scene .online')).toHaveCount(2);await expect(page.locator('#count')).toHaveText('5 / 10');
+      await page.locator('#thrust-output').fill('60');await page.screenshot({path:'test-results/booster-04-verify.png',fullPage:true});await page.getByRole('button',{name:'測試高速模式 ↗'}).click();
+      await expect(page.locator('#booster-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('6 / 10');await expect(page.locator('#target-title')).toHaveText('資材庫存室');
+      await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','powered');await expect(page.locator('#booster-scene .online')).toHaveCount(3);await page.clock.runFor(700);await page.screenshot({path:'test-results/booster-05-powered.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('5 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -289,6 +321,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===2){await solveLifeSupportRoom(page);continue;}
     if(i===3){await solveAirlockRoom(page);continue;}
     if(i===4){await solveCoolingRoom(page);continue;}
+    if(i===5){await solveBoosterRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -305,5 +338,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(0);
   await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力警示');
   await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.cooling-meter text')).toHaveText('100°C · 冷卻故障');
+  await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

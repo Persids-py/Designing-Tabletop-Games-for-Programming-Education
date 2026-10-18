@@ -6,6 +6,7 @@ import {generatorTasks,generatorRadius,assignmentOrder} from '../src/generator';
 import {lifeSupportTasks,lifeSupportRadius} from '../src/life-support';
 import {airlockTasks,airlockRadius} from '../src/airlock';
 import {coolingTasks,coolingRadius} from '../src/cooling';
+import {boosterTasks,boosterRadius} from '../src/booster';
 import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE,floors,obstacles,floorIds,obstacleIds} from '../src/map';
 
 test('走廊牆面封閉、氣閘入口位置及移除設備的通行',()=>{
@@ -46,7 +47,11 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
       g.player={...task.point};assert.equal(g.openCooling(task.id),null);
       assert.equal(g.submitCooling(task.id,['A','10','cycles += 1'][i]).success,true);g.close();
     }}
-    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:g.index===2?lifeSupportTasks[3].point:g.index===3?airlockTasks[3].point:g.index===4?coolingTasks[3].point:level.interactionPoint)};
+    if(g.index===5){for(const [i,task] of boosterTasks.slice(0,3).entries()){
+      g.player={...task.point};assert.equal(g.openBooster(task.id),null);
+      assert.equal(g.submitBooster(task.id,[':','*','return power'][i]).success,true);g.close();
+    }}
+    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:g.index===2?lifeSupportTasks[3].point:g.index===3?airlockTasks[3].point:g.index===4?coolingTasks[3].point:g.index===5?boosterTasks[3].point:level.interactionPoint)};
     if(g.index<9)assert.ok(g.open(levels[g.index+1].id));
     assert.equal(g.open(level.id),null);
     if(g.index===0)assert.equal(g.submitAlarm('verify',[...bootOrder]).success,true);
@@ -54,6 +59,7 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
     if(g.index===2)assert.equal(g.submitLifeSupport('verify','120 - 15 + 50').success,true);
     if(g.index===3)assert.equal(g.submitAirlock('verify',['LOCK','OPEN','OPEN']).success,true);
     if(g.index===4)assert.equal(g.submitCooling('verify',['90','80','70','60','4','60']).success,true);
+    if(g.index===5)for(const value of ['0','30','60'])assert.equal(g.submitBooster('verify',value).success,true);
     g.close();assert.equal(g.repair(level.id),false);
     assert.equal(g.open(level.id),null);
     assert.equal(g.repair(level.id),true);
@@ -71,6 +77,7 @@ test('出生點、維修點與碰撞邊界',()=>{
   for(const task of lifeSupportTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   for(const task of airlockTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   for(const task of coolingTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
+  for(const task of boosterTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   assert.equal(walkable(point(100,100)),false);
   assert.equal(walkable(point(340,550)),false);
   const stop=move(point(660,580),-1000*SCALE,0);
@@ -95,7 +102,7 @@ test('出生點可沿可走區抵達十個維修點',()=>{
       seen.add(k);queue.push([nx,ny]);
     }
   }
-  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius})),...lifeSupportTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:lifeSupportRadius})),...airlockTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:airlockRadius})),...coolingTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:coolingRadius}))];
+  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius})),...lifeSupportTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:lifeSupportRadius})),...airlockTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:airlockRadius})),...coolingTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:coolingRadius})),...boosterTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:boosterRadius}))];
   const missing=targets.filter(l=>!queue.some(([x,y])=>Math.hypot(x*step-l.interactionPoint.x,y*step-l.interactionPoint.y)<l.interactionRadius-10*SCALE));
   assert.deepEqual(missing.map(l=>l.roomName),[],`無法抵達：${missing.map(l=>l.roomName).join('、')}`);
 });
