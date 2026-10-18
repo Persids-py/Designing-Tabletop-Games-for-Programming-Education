@@ -5,6 +5,7 @@ import {alarmTasks,alarmRadius} from '../../src/alarm';
 import {generatorTasks,generatorRadius} from '../../src/generator';
 import {lifeSupportTasks,lifeSupportRadius} from '../../src/life-support';
 import {airlockTasks,airlockRadius} from '../../src/airlock';
+import {coolingTasks,coolingRadius} from '../../src/cooling';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -233,6 +234,40 @@ async function solveAirlockRoom(page:Page){
   }
 }
 
+async function solveCoolingRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-cooling-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成迴圈原因');await page.keyboard.press('m');
+  for(const task of coolingTasks){
+    for(const p of route(await position(page),task.point,coolingRadius))await walkTo(page,p);
+    await page.locator(`[data-cooling-task="${task.id}"]`).click();await expect(page.locator('#cooling-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='cause'){
+      await page.locator('input[name="loop-cause"][value="B"]').check();await page.getByRole('button',{name:'確認迴圈原因 ↗'}).click();await expect(page.locator('#cooling-feedback')).toContainText('溫度變數沒有');
+      await page.locator('input[name="loop-cause"][value="A"]').check();await page.screenshot({path:'test-results/cooling-01-cause.png',fullPage:true});await page.getByRole('button',{name:'確認迴圈原因 ↗'}).click();
+      await expect(page.locator('#cooling-dialog .terminal-output')).toContainText('temperature -= 10');
+    }else if(task.id==='drop'){
+      await page.getByRole('button',{name:'單次模擬 ↗'}).click();await expect(page.locator('#cooling-preview')).toContainText('100°C → 100°C');await expect(page.locator('#cooling-feedback')).toContainText('填 0');
+      await page.locator('#cooling-drop').fill('20');await page.getByRole('button',{name:'單次模擬 ↗'}).click();await expect(page.locator('#cooling-preview')).toContainText('100°C → 80°C');await expect(page.locator('#count')).toHaveText('4 / 10');
+      await page.locator('#cooling-drop').fill('10');await page.getByRole('button',{name:'單次模擬 ↗'}).click();await expect(page.locator('#cooling-dialog .terminal-output')).toContainText('100°C → 90°C');
+    }else if(task.id==='counter'){
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-cooling-task="counter"]').click();
+      await page.getByRole('button',{name:'cycles == 1',exact:true}).click();await page.getByRole('button',{name:'修復循環計數 ↗'}).click();await expect(page.locator('#cooling-feedback')).toContainText('比較');
+      await page.getByRole('button',{name:'cycles += 1',exact:true}).click();await expect(page.locator('#cycles-code')).toHaveValue('cycles += 1');await page.screenshot({path:'test-results/cooling-03-counter.png',fullPage:true});
+      await page.getByRole('button',{name:'修復循環計數 ↗'}).click();await expect(page.locator('#cooling-dialog .terminal-output')).toContainText('0 → 1');
+    }else{
+      for(const [i,value] of ['100','90','80','70','4','60'].entries())await page.locator(`input[name="result-${i}"]`).fill(value);
+      await page.getByRole('button',{name:'執行完整冷卻 ↗'}).click();await expect(page.locator('#cooling-feedback')).toContainText('每輪先減 10');await expect(page.locator('#count')).toHaveText('4 / 10');
+      for(const [i,value] of ['90','80','70','60','4','60'].entries())await page.locator(`input[name="result-${i}"]`).fill(value);
+      await page.screenshot({path:'test-results/cooling-04-verify.png',fullPage:true});await page.getByRole('button',{name:'執行完整冷卻 ↗'}).click();await expect(page.locator('#cooling-dialog')).not.toBeVisible();
+      await expect(page.locator('#count')).toHaveText('5 / 10');await expect(page.locator('#target-title')).toHaveText('副推進器室');
+      await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','cooling');await page.clock.runFor(320);await expect(page.locator('.cooling-meter text')).toHaveText('90°C · 冷卻中');
+      await page.clock.runFor(1000);await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','restored');await expect(page.locator('.cooling-meter text')).toHaveText('60°C · 溫度正常');
+      await page.clock.runFor(500);await page.screenshot({path:'test-results/cooling-05-restored.png',fullPage:true});continue;
+    }
+    await expect(page.locator('#count')).toHaveText('4 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
+    if(task.id==='cause'){await page.locator('[data-cooling-task="cause"]').click();await expect(page.locator('#cooling-dialog .device-success')).toContainText('已修復');await page.getByRole('button',{name:'返回船艙 →'}).click();}
+  }
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -253,6 +288,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===1){await solveGeneratorRoom(page);continue;}
     if(i===2){await solveLifeSupportRoom(page);continue;}
     if(i===3){await solveAirlockRoom(page);continue;}
+    if(i===4){await solveCoolingRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -268,5 +304,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#generator-scene .main-meter text')).toHaveText('---');await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('---');
   await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(0);
   await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力警示');
+  await expect(page.locator('#cooling-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('.cooling-meter text')).toHaveText('100°C · 冷卻故障');
   expect(errors).toEqual([]);
 });
