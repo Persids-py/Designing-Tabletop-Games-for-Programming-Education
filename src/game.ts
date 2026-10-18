@@ -8,10 +8,11 @@ import {BoosterState,boosterTasks,boosterRadius,type BoosterTaskId} from './boos
 import {CargoState,cargoTasks,cargoRadius,type CargoTaskId} from './cargo';
 import {CrewState,crewTasks,crewRadius,type CrewTaskId} from './crew';
 import {RadarState,radarTasks,radarRadius,type RadarTaskId} from './radar';
+import {WarpState,warpTasks,warpRadius,type WarpTaskId} from './warp';
 export interface Level {
   id: string; roomName: string; repairTheme: string; concept: string;
   interactionPoint: Point; interactionRadius: number;
-  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'|'alarm'|'generator'|'life-support'|'airlock'|'cooling'|'booster'|'cargo'|'crew'|'radar'; challengeConfig: null;
+  challengeType: 'placeholder'|'choice'|'fill'|'matching'|'blocks'|'alarm'|'generator'|'life-support'|'airlock'|'cooling'|'booster'|'cargo'|'crew'|'radar'|'warp'; challengeConfig: null;
 }
 const definitions: [string,string,string,number,number][] = [
   ['警報燈光室','警報燈光控制器','基礎語法與輸出',1620,169],
@@ -23,9 +24,9 @@ const definitions: [string,string,string,number,number][] = [
   ['資材庫存室','資材庫存探測器','陣列與串列',1135,720],
   ['船員資料庫','船員身分辨識資料庫','字典結構',1030,375],
   ['雷達測量室','雷達距離測量儀','例外處理',1780,475],
-  ['主躍遷引擎','主躍遷引擎啟動邏輯','綜合邏輯',480,570]
+  ['主躍遷引擎','主躍遷引擎啟動邏輯','綜合邏輯',310,430]
 ];
-export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':i===1?'generator':i===2?'life-support':i===3?'airlock':i===4?'cooling':i===5?'booster':i===6?'cargo':i===7?'crew':i===8?'radar':'placeholder',challengeConfig:null}));
+export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':i===1?'generator':i===2?'life-support':i===3?'airlock':i===4?'cooling':i===5?'booster':i===6?'cargo':i===7?'crew':i===8?'radar':'warp',challengeConfig:null}));
 export class Game {
   index=0;
   player={...spawn};
@@ -48,6 +49,8 @@ export class Game {
   crewTask:CrewTaskId|null=null;
   radar=new RadarState();
   radarTask:RadarTaskId|null=null;
+  warp=new WarpState();
+  warpTask:WarpTaskId|null=null;
   get completed() { return this.index===levels.length; }
   get current() { return levels[this.index]; }
   get navigation(){
@@ -60,6 +63,7 @@ export class Game {
     if(this.index===6)return {point:this.cargo.next.point,name:this.cargo.next.name,radius:cargoRadius};
     if(this.index===7)return {point:this.crew.next.point,name:this.crew.next.name,radius:crewRadius};
     if(this.index===8)return {point:this.radar.next.point,name:this.radar.next.name,radius:radarRadius};
+    if(this.index===9)return {point:this.warp.next.point,name:this.warp.next.name,radius:warpRadius};
     return this.current?{point:this.current.interactionPoint,name:this.current.roomName,radius:this.current.interactionRadius}:undefined;
   }
   get nearTarget(){const target=this.navigation;return !!target&&Math.hypot(this.player.x-target.point.x,this.player.y-target.point.y)<=target.radius;}
@@ -74,6 +78,7 @@ export class Game {
     if(id===levels[6].id&&this.index===6)return this.openCargo(this.cargo.next.id);
     if(id===levels[7].id&&this.index===7)return this.openCrew(this.crew.next.id);
     if(id===levels[8].id&&this.index===8)return this.openRadar(this.radar.next.id);
+    if(id===levels[9].id&&this.index===9)return this.openWarp(this.warp.next.id);
     const i=levels.findIndex(l=>l.id===id);
     if(i<0) return '找不到維修點';
     if(i<this.index) return '這個系統已修復';
@@ -190,7 +195,23 @@ export class Game {
     if(this.index!==8||this.opened!==levels[8].id||this.radarTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>radarRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
     return this.radar.submit(id,answer);
   }
-  close() { this.opened=null;this.alarmTask=null;this.generatorTask=null;this.lifeSupportTask=null;this.airlockTask=null;this.coolingTask=null;this.boosterTask=null;this.cargoTask=null;this.crewTask=null;this.radarTask=null; }
+  openWarp(id:WarpTaskId):string|null{
+    const task=warpTasks.find(t=>t.id===id);
+    if(this.index!==9||!task)return '目前沒有這個設備的維修任務';
+    const blocked=this.warp.blocked(id);if(blocked)return blocked;
+    if(Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>warpRadius)return '請先靠近故障點，再點擊開啟';
+    this.opened=levels[9].id;this.warpTask=id;return null;
+  }
+  private warpControl(id:WarpTaskId){const task=warpTasks.find(t=>t.id===id)!;return this.index===9&&this.opened===levels[9].id&&this.warpTask===id&&Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)<=warpRadius;}
+  submitWarp(id:WarpTaskId,answer:unknown):AlarmResult{
+    if(!warpTasks.some(t=>t.id===id)||!this.warpControl(id))return {success:false,message:'請先抵達設備並開啟維修面板。'};
+    return this.warp.submit(id,answer);
+  }
+  prepareWarpNavigation(){return this.warpControl('nav')&&this.warp.prepareNavigation();}
+  checkWarpActual(){return this.warpControl('verify')&&this.warp.checkActual();}
+  startWarp(){return this.warpControl('verify')&&this.warp.start();}
+  tickWarp(){if(!this.warpControl('verify')){this.warp.cancel();return false;}return this.warp.tick();}
+  close() { if(this.warp.launching)this.warp.cancel(); this.opened=null;this.alarmTask=null;this.generatorTask=null;this.lifeSupportTask=null;this.airlockTask=null;this.coolingTask=null;this.boosterTask=null;this.cargoTask=null;this.crewTask=null;this.radarTask=null;this.warpTask=null; }
   repair(id: string): boolean {
     if(this.completed || this.opened!==id || this.current.id!==id) return false;
     if(this.index===0){
@@ -221,8 +242,10 @@ export class Game {
     }else if(this.index===8){
       const console=radarTasks[3];
       if(!this.radar.completed||this.radarTask!=='verify'||Math.hypot(this.player.x-console.point.x,this.player.y-console.point.y)>radarRadius)return false;
+    }else if(this.index===9){
+      if(!this.warp.completed||!this.warpControl('verify'))return false;
     }else if(!this.near(this.current))return false;
     this.close(); this.index++; return true;
   }
-  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState();this.airlock=new AirlockState();this.cooling=new CoolingState();this.booster=new BoosterState();this.cargo=new CargoState();this.crew=new CrewState();this.radar=new RadarState(); }
+  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState();this.airlock=new AirlockState();this.cooling=new CoolingState();this.booster=new BoosterState();this.cargo=new CargoState();this.crew=new CrewState();this.radar=new RadarState();this.warp=new WarpState(); }
 }

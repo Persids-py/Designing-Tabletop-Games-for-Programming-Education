@@ -10,6 +10,7 @@ import {boosterTasks,boosterRadius} from '../../src/booster';
 import {cargoTasks, cargoRadius} from '../../src/cargo';
 import {crewTasks,crewRadius} from '../../src/crew';
 import {radarTasks,radarRadius} from '../../src/radar';
+import {warpTasks,warpRadius} from '../../src/warp';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -392,6 +393,40 @@ async function solveRadarRoom(page:Page){
   }
 }
 
+async function solveWarpRoom(page:Page){
+  await page.keyboard.press('m');await page.locator('[data-warp-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先修復導航鍵');await page.keyboard.press('m');
+  for(const task of warpTasks){
+    for(const p of route(await position(page),task.point,warpRadius))await walkTo(page,p);
+    await page.locator(`[data-warp-task="${task.id}"]`).click();await expect(page.locator('#warp-title')).toHaveText(task.name);
+    const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    if(task.id==='nav'){
+      await page.getByRole('button',{name:'修復導航查詢 ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('KeyError');
+      await page.locator('#warp-nav-key').fill('nav');await page.getByRole('button',{name:'修復導航查詢 ↗'}).click();await expect(page.locator('#warp-dialog .terminal-output')).toContainText('False');await expect(page.getByRole('button',{name:'完成導航準備 ↗'})).toBeDisabled();
+    }else if(task.id==='manual'){
+      await page.locator('input[name="manual-reason"][value="A"]').check();await page.getByRole('button',{name:'測試 ON 與 OFF ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('非空字串');
+      await page.locator('#manual-code').fill('manual_override = (manual_status == "ON")');await page.screenshot({path:'test-results/warp-02-manual.png',fullPage:true});await page.getByRole('button',{name:'測試 ON 與 OFF ↗'}).click();await expect(page.locator('#warp-dialog .terminal-output')).toHaveText('ON → True\nOFF → False');
+    }else if(task.id==='logic'){
+      for(const [i,value] of ['or','and','and','or'].entries())await page.locator(`#warp-op-${i}`).selectOption(value);await page.getByRole('button',{name:'重建啟動條件 ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('三者必須全部');
+      await page.locator('#warp-op-0').selectOption('and');await page.screenshot({path:'test-results/warp-03-logic.png',fullPage:true});await page.getByRole('button',{name:'重建啟動條件 ↗'}).click();await expect(page.locator('#warp-dialog .terminal-output')).toContainText('radar or manual');
+    }else{
+      for(const [i,value] of ['ALLOW','ALLOW','ALLOW','LOCK'].entries())await page.locator(`input[name="case-${i}"][value="${value}"]`).check();await page.getByRole('button',{name:'執行四組安全測試 ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('B 禁止');
+      await page.locator('input[name="case-1"][value="LOCK"]').check();await page.screenshot({path:'test-results/warp-04-safety.png',fullPage:true});await page.getByRole('button',{name:'執行四組安全測試 ↗'}).click();await expect(page.locator('#count')).toHaveText('9 / 10');
+      await expect(page.getByRole('button',{name:'啟動躍遷 →'})).toBeDisabled();await page.getByRole('button',{name:'檢查實際狀態 ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('導航尚未就緒');await page.screenshot({path:'test-results/warp-05-nav-locked.png',fullPage:true});
+    }
+    await expect(page.locator('#count')).toHaveText('9 / 10');await page.keyboard.press('Escape');
+  }
+  await expect(page.locator('#target-theme')).toContainText('導航控制器');
+  for(const p of route(await position(page),warpTasks[0].point,warpRadius))await walkTo(page,p);
+  await page.locator('[data-warp-task="nav"]').click();await page.getByRole('button',{name:'完成導航準備 ↗'}).click();await expect(page.locator('#warp-feedback')).toContainText('nav 已變為 True');await page.getByRole('button',{name:'返回船艙 →'}).click();
+  for(const p of route(await position(page),warpTasks[3].point,warpRadius))await walkTo(page,p);
+  await page.locator('[data-warp-task="verify"]').click();await expect(page.getByRole('button',{name:'啟動躍遷 →'})).toBeDisabled();await page.getByRole('button',{name:'檢查實際狀態 ↗'}).click();await expect(page.locator('#warp-actual-output')).toHaveText('WARP READY');await expect(page.getByRole('button',{name:'啟動躍遷 →'})).toBeEnabled();
+  await page.keyboard.press('Escape');await page.clock.runFor(700);await page.screenshot({path:'test-results/warp-06-ready.png',fullPage:true});
+  await page.locator('[data-warp-task="verify"]').click();await page.getByRole('button',{name:'啟動躍遷 →'}).click();await expect(page.locator('#warp-countdown')).toHaveText('3');await page.clock.runFor(1100);await expect(page.locator('#warp-countdown')).toHaveText('2');
+  await page.keyboard.press('Escape');await page.clock.runFor(2500);await expect(page.locator('#count')).toHaveText('9 / 10');await expect(page.locator('#complete-dialog')).not.toBeVisible();
+  await page.locator('[data-warp-task="verify"]').click();await page.getByRole('button',{name:'啟動躍遷 →'}).click();await page.clock.runFor(2100);await expect(page.locator('#warp-countdown')).toHaveText('1');await expect(page.locator('#count')).toHaveText('9 / 10');await page.screenshot({path:'test-results/warp-07-countdown.png',fullPage:true});
+  await page.clock.runFor(1000);await expect(page.locator('#warp-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('10 / 10');await expect(page.locator('#warp-scene')).toHaveAttribute('data-stage','returned');await expect(page.locator('#complete-title')).toHaveText('探索者號返航成功');
+}
+
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/');await page.clock.runFor(32);
@@ -417,6 +452,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
     if(i===6){await solveCargoRoom(page);continue;}
     if(i===7){await solveCrewRoom(page);continue;}
     if(i===8){await solveRadarRoom(page);continue;}
+    if(i===9){await solveWarpRoom(page);continue;}
     const path=route(await position(page),l.interactionPoint,l.interactionRadius);
     for(const p of path)await walkTo(page,p);
     await page.locator(`[data-room="${l.id}"]`).click();await expect(page.locator('#dialog-title')).toHaveText(l.roomName);
@@ -437,5 +473,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#cargo-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#cargo-scene [data-crate="B"]')).toHaveCSS('opacity','1');await expect(page.locator('#cargo-scene [data-crate="E"]')).toHaveCSS('opacity','0');
   await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#crew-scene .holo-name')).toHaveText('---');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL ?');
   await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#radar-scene')).not.toHaveClass(/radar-restored/);
+  await expect(page.locator('#warp-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#warp-scene .warp-monitor text')).toHaveText('WARP LOCKED');await expect(page.locator('#warp-scene')).not.toHaveClass(/warp-ready/);
   expect(errors).toEqual([]);
 });

@@ -10,6 +10,7 @@ import {boosterTasks,boosterRadius} from '../src/booster';
 import {cargoTasks,cargoRadius} from '../src/cargo';
 import {crewTasks,crewRadius} from '../src/crew';
 import {radarTasks,radarRadius} from '../src/radar';
+import {warpTasks,warpRadius} from '../src/warp';
 import {spawn,point,walkable,move,MAP_WIDTH,MAP_HEIGHT,SCALE,floors,obstacles,floorIds,obstacleIds} from '../src/map';
 
 test('走廊牆面封閉、氣閘入口位置及移除設備的通行',()=>{
@@ -66,7 +67,11 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
       g.player={...task.point};assert.equal(g.openRadar(task.id),null);
       assert.equal(g.submitRadar(task.id,['C',['try:','except ValueError:'],{labels:['valid','noise','valid','noise','valid'],total:'50'}][i]).success,true);g.close();
     }}
-    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:g.index===2?lifeSupportTasks[3].point:g.index===3?airlockTasks[3].point:g.index===4?coolingTasks[3].point:g.index===5?boosterTasks[3].point:g.index===6?cargoTasks[3].point:g.index===7?crewTasks[3].point:g.index===8?radarTasks[3].point:level.interactionPoint)};
+    if(g.index===9){for(const [i,task] of warpTasks.slice(0,3).entries()){
+      g.player={...task.point};assert.equal(g.openWarp(task.id),null);
+      assert.equal(g.submitWarp(task.id,['nav',{reason:'A',code:'manual_override = (manual_status == "ON")'},['and','and','and','or']][i]).success,true);g.close();
+    }}
+    g.player={...(g.index===0?alarmTasks[3].point:g.index===1?generatorTasks[3].point:g.index===2?lifeSupportTasks[3].point:g.index===3?airlockTasks[3].point:g.index===4?coolingTasks[3].point:g.index===5?boosterTasks[3].point:g.index===6?cargoTasks[3].point:g.index===7?crewTasks[3].point:g.index===8?radarTasks[3].point:g.index===9?warpTasks[3].point:level.interactionPoint)};
     if(g.index<9)assert.ok(g.open(levels[g.index+1].id));
     assert.equal(g.open(level.id),null);
     if(g.index===0)assert.equal(g.submitAlarm('verify',[...bootOrder]).success,true);
@@ -78,6 +83,11 @@ test('維修順序、遠距限制、關閉與重複結算',()=>{
     if(g.index===6)assert.equal(g.submitCargo('verify',{count:'4',order:['A','E','C','D'],item:'D'}).success,true);
     if(g.index===7)assert.equal(g.submitCrew('verify',{threshold:'2',decisions:['GRANTED','DENIED','DENIED']}).success,true);
     if(g.index===8)assert.equal(g.submitRadar('verify',{code:'errors += 1',outputs:['50','2','0','2']}).success,true);
+    if(g.index===9){
+      assert.equal(g.submitWarp('verify',['ALLOW','LOCK','ALLOW','LOCK']).success,true);g.close();
+      g.player={...warpTasks[0].point};assert.equal(g.openWarp('nav'),null);assert.equal(g.prepareWarpNavigation(),true);g.close();
+      g.player={...warpTasks[3].point};assert.equal(g.openWarp('verify'),null);assert.equal(g.checkWarpActual(),true);assert.equal(g.startWarp(),true);g.tickWarp();g.tickWarp();g.tickWarp();
+    }
     g.close();assert.equal(g.repair(level.id),false);
     assert.equal(g.open(level.id),null);
     assert.equal(g.repair(level.id),true);
@@ -99,6 +109,7 @@ test('出生點、維修點與碰撞邊界',()=>{
   for(const task of cargoTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   for(const task of crewTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   for(const task of radarTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
+  for(const task of warpTasks)assert.ok(walkable(task.point),task.name+' 互動點不在地板');
   assert.equal(walkable(point(100,100)),false);
   assert.equal(walkable(point(340,550)),false);
   const stop=move(point(660,580),-1000*SCALE,0);
@@ -123,7 +134,7 @@ test('出生點可沿可走區抵達十個維修點',()=>{
       seen.add(k);queue.push([nx,ny]);
     }
   }
-  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius})),...lifeSupportTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:lifeSupportRadius})),...airlockTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:airlockRadius})),...coolingTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:coolingRadius})),...boosterTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:boosterRadius})),...cargoTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:cargoRadius})),...crewTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:crewRadius})),...radarTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:radarRadius}))];
+  const targets=[...levels,...alarmTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:alarmRadius})),...generatorTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:generatorRadius})),...lifeSupportTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:lifeSupportRadius})),...airlockTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:airlockRadius})),...coolingTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:coolingRadius})),...boosterTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:boosterRadius})),...cargoTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:cargoRadius})),...crewTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:crewRadius})),...radarTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:radarRadius})),...warpTasks.map(t=>({roomName:t.name,interactionPoint:t.point,interactionRadius:warpRadius}))];
   const missing=targets.filter(l=>!queue.some(([x,y])=>Math.hypot(x*step-l.interactionPoint.x,y*step-l.interactionPoint.y)<l.interactionRadius-10*SCALE));
   assert.deepEqual(missing.map(l=>l.roomName),[],`無法抵達：${missing.map(l=>l.roomName).join('、')}`);
 });

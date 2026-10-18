@@ -29,6 +29,10 @@ import './radar.css';
 import {radarTasks,type RadarTaskId} from './radar';
 import {setupRadarUI} from './radar-ui';
 import {setupRadarScene} from './radar-scene';
+import './warp.css';
+import {warpTasks,type WarpTaskId} from './warp';
+import {setupWarpUI} from './warp-ui';
+import {setupWarpScene} from './warp-scene';
 import mapUrl from '../地圖.jpg';
 import {Game,levels} from './game';
 import {MAP_WIDTH,MAP_HEIGHT,move,speed,type Point} from './map';
@@ -54,7 +58,7 @@ app.innerHTML=`
 <footer class="controls"><div><span class="key-group"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>或方向鍵移動</span><span class="divider"></span><span>滑鼠點擊故障標記</span><span class="divider"></span><kbd>Esc</kbd><span>關閉面板</span></div><span>第一關 · 警報系統維修</span></footer></main>
 <div id="toast" role="status" aria-live="polite"></div>
 <dialog id="repair-dialog" aria-labelledby="dialog-title"><button class="close" id="close-dialog" aria-label="關閉維修面板">×</button><p class="eyebrow" id="dialog-step"></p><div class="repair-symbol">⌁</div><h2 id="dialog-title"></h2><p id="dialog-theme"></p><div class="fault-note"><span class="status-dot"></span>設備故障，等待維修</div><p class="dialog-description">抵達維修點。點擊下方按鈕，恢復這個系統的運作。</p><button id="repair" class="primary">維修 <span>↗</span></button></dialog>
-<dialog id="complete-dialog" aria-labelledby="complete-title"><p class="eyebrow">任務完成 / MISSION COMPLETE</p><div class="success-symbol">✓</div><h2 id="complete-title">太空船維修完成</h2><p>10 個系統已全數恢復運作。<br>這趟維修旅程，完成了。</p><button id="restart" class="primary">重新開始 <span>↻</span></button></dialog>`;
+<dialog id="complete-dialog" aria-labelledby="complete-title"><p class="eyebrow">任務完成 / MISSION COMPLETE</p><div class="success-symbol">✓</div><h2 id="complete-title">探索者號返航成功</h2><p>10 個系統維修與安全測試已完成。<br>躍遷啟動成功，探索者號返回安全航線。</p><button id="restart" class="primary">重新開始 <span>↻</span></button></dialog>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const map=el('map');
 // 圖片、角色、維修點與碰撞疊圖共用一個世界圖層，鏡頭只改變顯示位置。
@@ -74,6 +78,7 @@ const drawBoosterScene=setupBoosterScene(world);
 const drawCargoScene=setupCargoScene(world);
 const drawCrewScene=setupCrewScene(world);
 const drawRadarScene=setupRadarScene(world);
+const drawWarpScene=setupWarpScene(world);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
@@ -86,6 +91,7 @@ const boosterUI=setupBoosterUI(game,{changed:render,completed:()=>afterRepair('�
 const cargoUI=setupCargoUI(game,{changed:render,completed:()=>afterRepair('資材庫存室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const crewUI=setupCrewUI(game,{changed:render,completed:()=>afterRepair('船員資料庫'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const radarUI=setupRadarUI(game,{changed:render,completed:()=>afterRepair('雷達測量室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
+const warpUI=setupWarpUI(game,{changed:render,completed:()=>afterRepair('主躍遷引擎'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 let toastTimer:ReturnType<typeof setTimeout>;
 function toast(message:string) { el('toast').textContent=message;el('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('visible'),3200); }
 function closeRepair() { game.close();repairDialog.close();keys.clear();map.focus({preventScroll:true}); }
@@ -99,6 +105,7 @@ function openRepair(id:string) {
   if(id==='room-7'&&game.index===6){cargoUI.open(game.cargo.next.id);keys.clear();return;}
   if(id==='room-8'&&game.index===7){crewUI.open(game.crew.next.id);keys.clear();return;}
   if(id==='room-9'&&game.index===8){radarUI.open(game.radar.next.id);keys.clear();return;}
+  if(id==='room-10'&&game.index===9){warpUI.open(game.warp.next.id);keys.clear();return;}
   const error=game.open(id);if(error){toast(error);return;}
   keys.clear(); const level=game.current;
   el('dialog-step').textContent=`維修站 ${String(game.index+1).padStart(2,'0')} / 10`;
@@ -116,7 +123,8 @@ function render() {
   drawCargoScene(game.cargo);
   drawCrewScene(game.crew);
   drawRadarScene(game.radar);
-  document.querySelector('.controls>span')!.textContent=game.index===0?'第一關 · 警報系統維修':game.index===1?'第二關 · 供電系統維修':game.index===2?'第三關 · 維生能源修復':game.index===3?'第四關 · 氣閘安全修復':game.index===4?'第五關 · 冷卻迴圈修復':game.index===5?'第六關 · 函式推力修復':game.index===6?'第七關 · 倉儲索引修復':game.index===7?'第八關 · 資料查詢與授權':game.index===8?'第九關 · 雷達例外修復':'太空船維修任務';
+  drawWarpScene(game.warp);
+  document.querySelector('.controls>span')!.textContent=game.index===0?'第一關 · 警報系統維修':game.index===1?'第二關 · 供電系統維修':game.index===2?'第三關 · 維生能源修復':game.index===3?'第四關 · 氣閘安全修復':game.index===4?'第五關 · 冷卻迴圈修復':game.index===5?'第六關 · 函式推力修復':game.index===6?'第七關 · 倉儲索引修復':game.index===7?'第八關 · 資料查詢與授權':game.index===8?'第九關 · 雷達例外修復':game.index===9?'第十關 · 最終躍遷安全驗證':'太空船維修任務';
   el('count').innerHTML=`${game.index} <small>/ 10</small>`;
   el('progress').style.width=`${game.index*10}%`;
   el('progress-note').textContent=game.completed?'所有系統運作正常':`尚有 ${10-game.index} 個系統等待修復`;
@@ -169,6 +177,11 @@ function render() {
     el('target-theme').textContent=`下一個設備：${game.radar.next.name}`;
     el('target-status').textContent=`● 設備修復 ${game.radar.count} / 4`;
     el('target-help').textContent=game.radar.ready?'修復錯誤計數器，驗證一般與全雜訊兩組資料，讓雷達正常結束。':'辨識轉換錯誤、組合例外處理，跳過雜訊並計算有效訊號。';
+  }
+  if(game.index===9){
+    el('target-theme').textContent=`下一個設備：${game.warp.next.name}`;
+    el('target-status').textContent=`● 設備修復 ${game.warp.count} / 4`;
+    el('target-help').textContent=game.warp.tested?(!game.warp.systems.nav?'四組測試通過。請返回導航控制器完成準備。':'前往最終啟動台，檢查實際狀態，再啟動躍遷。'):game.warp.ready?'完成四組安全測試後，再檢查實際系統狀態。':'修復字典鍵、人工授權與啟動條件；安全測試全對後才能準備最終躍遷。';
   }
   el('markers').innerHTML=levels.map((l,i)=>`<button class="marker ${i<game.index?'repaired':i===game.index?'active':'locked'}" style="left:${l.interactionPoint.x/MAP_WIDTH*100}%;top:${l.interactionPoint.y/MAP_HEIGHT*100}%" data-room="${l.id}" aria-label="${i+1}. ${l.roomName}：${i<game.index?'已修復':i===game.index?'目前目標':'未解鎖'}"><span>${i<game.index?'✓':i===game.index?'!':i+1}</span>${i===game.index?'<i class="marker-label">故障點</i>':''}</button>`).join('');
   el('route').innerHTML=levels.map((l,i)=>`<li class="${i<game.index?'done':i===game.index?'current':''}" ${i===game.index?'aria-current="step"':''}><span class="route-number">${i<game.index?'✓':String(i+1).padStart(2,'0')}</span><span>${l.roomName}</span><span class="route-state">${i<game.index?'完成':i===game.index?'進行中':'·'}</span></li>`).join('');
@@ -235,8 +248,15 @@ function render() {
       return `<button class="marker radar-device ${repaired?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-radar-task="${task.id}" ${i===0?'data-room="room-9"':''} aria-label="${task.name}：${repaired?'已修復':locked?'尚未解鎖':'等待維修'}"><span>${repaired?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
     }).join(''));
   }
+  if(game.index===9){
+    el('markers').querySelector('[data-room="room-10"]')?.remove();
+    el('markers').insertAdjacentHTML('beforeend',warpTasks.map((task,i)=>{
+      const repaired=game.warp.repaired[task.id],locked=!!game.warp.blocked(task.id),active=task.id===game.warp.next.id;
+      return `<button class="marker warp-device ${repaired&&!active?'repaired':active?'active':locked?'locked':'ready'}" style="left:${task.point.x/MAP_WIDTH*100}%;top:${task.point.y/MAP_HEIGHT*100}%" data-warp-task="${task.id}" ${i===0?'data-room="room-10"':''} aria-label="${task.name}：${active&&game.warp.tested?'等待最終操作':repaired?'已修復':locked?'尚未解鎖':'等待維修'}"><span>${repaired&&!active?'✓':active?'!':i+1}</span>${active?`<i class="marker-label">${task.name}</i>`:''}</button>`;
+    }).join(''));
+  }
 }
-el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else openRepair(target.dataset.room!);});
+el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task],[data-warp-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else if(target.dataset.warpTask){keys.clear();warpUI.open(target.dataset.warpTask as WarpTaskId);}else openRepair(target.dataset.room!);});
 el('close-dialog').onclick=closeRepair;
 repairDialog.addEventListener('cancel',event=>{event.preventDefault();closeRepair();});
 el('repair').onclick=()=>{
@@ -255,7 +275,7 @@ const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowrigh
 document.addEventListener('keydown',event=>{
   if((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]'))return;
   const key=event.key.toLowerCase();
-  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open){event.preventDefault();keys.add(key);}
+  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open&&!warpUI.dialog.open){event.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));
 window.addEventListener('blur',()=>keys.clear());
