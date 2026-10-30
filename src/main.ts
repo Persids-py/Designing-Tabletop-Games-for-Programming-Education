@@ -288,7 +288,7 @@ const image=el<HTMLImageElement>('map-image');
 image.onerror=()=>{el('map-error').hidden=false;};
 image.onload=()=>{el('map-error').hidden=true;};
 el('retry').onclick=()=>{image.src=`${mapUrl}?retry=${Date.now()}`;};
-let previous=performance.now(),wasNear=false;
+let previous=performance.now(),wasNear=false,lastProximity='';
 function frame(now:number) {
   const dt=Math.min((now-previous)/1000,.04);previous=now;
   if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open){
@@ -300,8 +300,10 @@ function frame(now:number) {
   camera.update(game.player,game.navigation?.point,game.navigation?.name);
   const near=game.nearTarget;
   if(near!==wasNear){wasNear=near;map.classList.toggle('in-range',near);}
-  el('proximity').textContent=game.completed?'所有系統已修復':near?'已抵達 · 點擊目前故障標記':'移動至閃爍標記附近';
+  const proximity=game.completed?'所有系統已修復':near?'已抵達 · 點擊目前故障標記':'移動至閃爍標記附近';
+  if(proximity!==lastProximity){lastProximity=proximity;el('proximity').textContent=proximity;}
   requestAnimationFrame(frame);
 }
-function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);drawCharacter(p);drawHitbox(p);}
+let lastPlayerTransform='';
+function drawPlayer(p:Point){const transform=`translate(${p.x} ${p.y})`;if(transform!==lastPlayerTransform){lastPlayerTransform=transform;el('player').setAttribute('transform',transform);}drawCharacter(p);drawHitbox(p);}
 render();requestAnimationFrame(frame);openingUI.open();

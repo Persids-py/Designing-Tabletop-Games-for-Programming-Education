@@ -33,23 +33,31 @@ export function setupCamera(viewport: HTMLElement, world: HTMLElement, initialPl
   const caption = document.querySelector('.map-caption')!;
   let overview = new URLSearchParams(location.search).get('view') === 'overview';
   let player = initialPlayer, target: Point | undefined, targetName = '';
-  let frame = cameraFrame(viewport.clientWidth, viewport.clientHeight, player, overview);
+  let width=viewport.clientWidth,height=viewport.clientHeight;
+  let frame = cameraFrame(width, height, player, overview);
+  let lastDraw='',lastView:boolean|undefined;
   function draw() {
-    const width=viewport.clientWidth,height=viewport.clientHeight;
     if(!width||!height)return;
+    const state=[width,height,player.x,player.y,target?.x,target?.y,targetName,overview].join('|');
+    if(state===lastDraw)return;
+    lastDraw=state;
     frame=cameraFrame(width,height,player,overview);
     world.style.transform=`translate(${-frame.left*frame.scale}px, ${-frame.top*frame.scale}px) scale(${frame.scale})`;
-    viewport.dataset.view=overview?'overview':'follow';
-    toggle.textContent=overview?'返回角色視角 · M':'全船地圖 · M';
-    toggle.setAttribute('aria-pressed',String(overview));
-    caption.textContent=overview?'全船地圖':'角色跟隨視角';
+    if(lastView!==overview){
+      lastView=overview;
+      viewport.dataset.view=overview?'overview':'follow';
+      toggle.textContent=overview?'返回角色視角 · M':'全船地圖 · M';
+      toggle.setAttribute('aria-pressed',String(overview));
+      caption.textContent=overview?'全船地圖':'角色跟隨視角';
+    }
     const hint=target&&!overview?edgeIndicator(project(player,frame),project(target,frame),width,height):null;
     arrow.hidden=!hint;
     if(hint){
       arrow.style.left=`${hint.x}px`;arrow.style.top=`${hint.y}px`;
       (arrow.firstElementChild as HTMLElement).style.transform=`rotate(${hint.angle}deg)`;
-      arrow.setAttribute('aria-label',`故障方向：${targetName}`);
-      arrow.title=`${targetName}在此方向，請沿船內通道前往`;
+      const label=`故障方向：${targetName}`,title=`${targetName}在此方向，請沿船內通道前往`;
+      if(arrow.getAttribute('aria-label')!==label)arrow.setAttribute('aria-label',label);
+      if(arrow.title!==title)arrow.title=title;
     }
   }
   function changeView(){overview=!overview;const url=new URL(location.href);if(overview)url.searchParams.set('view','overview');else url.searchParams.delete('view');history.replaceState(null,'',url);draw();}
@@ -58,7 +66,8 @@ export function setupCamera(viewport: HTMLElement, world: HTMLElement, initialPl
     if(event.key.toLowerCase()!=='m'||event.repeat||(event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')||document.querySelector('dialog[open]'))return;
     event.preventDefault();changeView();
   });
-  new ResizeObserver(draw).observe(viewport);
+  // 尺寸只在視窗／容器變化時讀取，不在每次角色移動後強制計算版面。
+  new ResizeObserver(()=>{width=viewport.clientWidth;height=viewport.clientHeight;draw();}).observe(viewport);
   draw();
   return {
     update(p:Point,t:Point|undefined,name=''){player=p;target=t;targetName=name;draw();},

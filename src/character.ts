@@ -23,10 +23,12 @@ export function setupCharacter(root: HTMLElement, initial: Point) {
   const back = root.querySelector<SVGGElement>('#crew-leg-back')!;
   const front = root.querySelector<SVGGElement>('#crew-leg-front')!;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let previous = { ...initial }, phase = 0, direction = 1;
+  let previous = { ...initial }, phase = 0, direction = 1, wasMoving:boolean|undefined;
   return (p: Point) => {
     const dx = p.x-previous.x, dy = p.y-previous.y, distance = Math.hypot(dx,dy);
     const moving = distance > .01 && distance < 100;
+    if(distance===0&&wasMoving===false)return;
+    wasMoving=moving;
     if (distance >= 100) { phase = 0; direction = 1; }
     if (moving && Math.abs(dx) > .01) direction = dx < 0 ? -1 : 1;
     if (moving) phase += distance / 10;
