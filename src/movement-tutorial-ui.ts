@@ -1,8 +1,10 @@
 import type {Game} from './game';
 import {MovementTutorialState,movementLines,foundLines} from './movement-tutorial';
+import {readTutorialCompletion,saveTutorialCompletion,clearTutorialCompletion} from './tutorial-completion';
 
-export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{paused:()=>void;released:()=>void;repair:()=>boolean;notify:(text:string)=>void}){
+export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{paused:()=>void;released:()=>void;repair:()=>boolean;completed:()=>void;notify:(text:string)=>void}){
   const state=new MovementTutorialState();
+  if(readTutorialCompletion())state.phase='entered';
   const dialog=document.createElement('dialog');dialog.id='movement-tutorial-dialog';dialog.className='movement-tutorial-dialog';dialog.setAttribute('aria-labelledby','movement-tutorial-title');
   const hud=document.createElement('div');hud.id='movement-tutorial-hud';hud.className='movement-tutorial-hud';hud.hidden=true;map.append(hud);document.body.append(dialog);
   let page=0;
@@ -40,7 +42,7 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
         if(!active()||!state.near(game.player)){dismiss();callbacks.notify('請先靠近主控制電腦，再開始維修。');return;}
         dialog.close();callbacks.paused();
         const opened=callbacks.repair();
-        if(state.enter(opened)){map.classList.remove('tutorial-device-found');updateHud();}
+        if(state.enter(opened)){map.classList.remove('tutorial-device-found');updateHud();saveTutorialCompletion();callbacks.completed();}
         else{state.dismiss();updateHud();callbacks.released();}
         return;
       }
@@ -51,6 +53,7 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
   dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
   return {
     dialog,
+    get completed(){return state.phase==='entered';},
     start(){if(state.start()){page=0;show();}},
     update(){if(!dialog.open&&state.arrive(game.player,active()))found();},
     deviceClick(id:string){
@@ -59,6 +62,6 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
       if(id==='computer'&&state.arrive(game.player,active())){found();return true;}
       callbacks.notify('請先沿走廊前往主控制電腦，依維修提示開始第一項任務。');return true;
     },
-    reset(){dialog.close();state.reset();page=0;hud.hidden=true;map.classList.remove('tutorial-device-found');}
+    reset(){dialog.close();state.reset();clearTutorialCompletion();page=0;hud.hidden=true;map.classList.remove('tutorial-device-found');}
   };
 }
