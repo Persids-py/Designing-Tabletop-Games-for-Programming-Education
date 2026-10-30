@@ -30,7 +30,7 @@ test('介面導覽全文、區域框選、示意、鎖定與重看',async({page}
     if(i===interfaceGuideSteps.length-1){await page.keyboard.down('d');await guide.getByRole('button',{name:'開始探索 →'}).click();}
     else await guide.getByRole('button',{name:'下一段 →'}).click();
   }
-  await page.clock.runFor(256);await page.keyboard.up('d');await expect(guide).not.toBeVisible();await expect(player).toHaveAttribute('transform',initial!);
+  await expect(page.locator('#movement-tutorial-dialog')).toBeVisible();await page.getByRole('button',{name:'略過說明'}).click();await page.clock.runFor(256);await page.keyboard.up('d');await expect(guide).not.toBeVisible();await expect(player).toHaveAttribute('transform',initial!);
   await expect(page.locator('#count')).toHaveText('0 / 10');await expect(page.locator('#target-status')).toContainText('0 / 4');
   await page.keyboard.down('d');await page.clock.runFor(128);await page.keyboard.up('d');expect(await player.getAttribute('transform')).not.toEqual(initial);
   const moved=await player.getAttribute('transform');await page.locator('#interface-guide-replay').click();await expect(guide).toHaveAttribute('data-step','0');await page.keyboard.press('Escape');await expect(guide).not.toBeVisible();await expect(player).toHaveAttribute('transform',moved!);

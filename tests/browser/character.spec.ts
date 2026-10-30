@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('船員踏步、停止、左右轉向及卡牆後停止踏步',async({page})=>{
-  await page.clock.install();await page.goto('/');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await page.clock.runFor(32);
+  await page.clock.install();await page.goto('/');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();if(await page.locator('#movement-tutorial-dialog').isVisible())await page.getByRole('button',{name:'略過說明',exact:true}).click();await page.clock.runFor(32);
   await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
   // 陰影限於角色，避免每張全船 SVG 都建立整幅地圖的濾鏡圖層。
   expect(await page.locator('#player-layer').evaluate(el=>getComputedStyle(el).filter)).toBe('none');

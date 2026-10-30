@@ -11,6 +11,7 @@ import {cargoTasks, cargoRadius} from '../../src/cargo';
 import {crewTasks,crewRadius} from '../../src/crew';
 import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
+import {foundLines} from '../../src/movement-tutorial';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -48,14 +49,29 @@ async function walkTo(page:Page,target:Point){
       await page.keyboard.down(key);
       await page.clock.runFor(Math.max(16,Math.round(Math.abs(delta)/speed*1000/16)*16));
       await page.keyboard.up(key);
+      if(await page.locator('#movement-tutorial-dialog[data-phase="found"]').isVisible())return;
     }
   }
   const p=await position(page);expect(Math.hypot(p.x-target.x,p.y-target.y),JSON.stringify({p,target})).toBeLessThan(9*SCALE);
 }
 async function solveAlarmRoom(page:Page){
   for(const task of alarmTasks){
-    for(const p of route(await position(page),task.point,alarmRadius))await walkTo(page,p);
-    await page.locator(`[data-alarm-task="${task.id}"]`).click();
+    for(const p of route(await position(page),task.point,alarmRadius)){await walkTo(page,p);if(await page.locator('#movement-tutorial-dialog[data-phase="found"]').isVisible())break;}
+    if(task.id==='computer'){
+      const found=page.locator('#movement-tutorial-dialog');await expect(found).toHaveAttribute('data-phase','found');await expect(found).toHaveAttribute('data-step','0');await expect(page.locator('#alarm-dialog')).not.toBeVisible();
+      await expect(page.locator('#movement-tutorial-text')).toHaveText(foundLines[0]);
+      const stopped=await position(page);await page.keyboard.down('d');await page.clock.runFor(256);await page.keyboard.up('d');expect(await position(page)).toEqual(stopped);
+      await expect(page.locator('#map')).toHaveClass(/tutorial-device-found/);
+      await expect(page.locator('[data-alarm-task="computer"]>span')).toHaveCSS('background-color','rgb(255, 141, 134)');
+      await found.getByRole('button',{name:'下一段 →'}).click();await expect(found).toHaveAttribute('data-step','1');
+      await page.screenshot({path:'test-results/tutorial-04-found.png',fullPage:true});
+      await page.keyboard.press('Escape');await expect(found).not.toBeVisible();await page.clock.runFor(256);await expect(found).not.toBeVisible();
+      await page.locator('[data-alarm-task="computer"]').click();await expect(found).toHaveAttribute('data-step','1');
+      for(let step=1;step<4;step++){await expect(page.locator('#movement-tutorial-text')).toHaveText(foundLines[step]);await found.getByRole('button',{name:'下一段 →'}).click();}
+      await expect(found).toContainText('即將進入「第 1 關：警報燈光室」');await expect(page.locator('#count')).toHaveText('0 / 10');
+      await page.screenshot({path:'test-results/tutorial-04-ready.png',fullPage:true});
+      await found.getByRole('button',{name:'開始維修 →'}).click();await expect(found).not.toBeVisible();await expect(page.locator('#movement-tutorial-hud')).not.toBeVisible();
+    }else await page.locator(`[data-alarm-task="${task.id}"]`).click();
     await expect(page.locator('#alarm-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
     await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
@@ -430,7 +446,7 @@ async function solveWarpRoom(page:Page){
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   // 固定虛擬時鐘，避免操作延遲在按鍵按住期間額外推進角色。
-  await page.clock.install({time:new Date('2026-10-30T00:00:00Z')});await page.goto('/');await page.clock.pauseAt(new Date('2026-10-30T00:01:00Z'));await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await page.clock.runFor(32);
+  await page.clock.install({time:new Date('2026-10-30T00:00:00Z')});await page.goto('/');await page.clock.pauseAt(new Date('2026-10-30T00:01:00Z'));await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();if(await page.locator('#movement-tutorial-dialog').isVisible())await page.getByRole('button',{name:'略過說明',exact:true}).click();await page.clock.runFor(32);
   await expect(page.locator('#map-image')).toHaveJSProperty('naturalWidth',2752);
   await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   await expect(page.locator('#target-arrow')).toBeVisible();
@@ -438,9 +454,9 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await page.locator('#camera-toggle').click();
   await page.locator('[data-room="room-1"]').click();
   await expect(page.locator('#repair-dialog')).not.toBeVisible();
-  await expect(page.locator('#toast')).toContainText('請先靠近');
+  await expect(page.locator('#toast')).toContainText('請先沿走廊前往主控制電腦');
   await page.locator('[data-room="room-2"]').click();await expect(page.locator('#count')).toHaveText('0 / 10');
-  await page.locator('[data-alarm-task="verify"]').click();await expect(page.locator('#toast')).toContainText('先完成三個設備');
+  await page.locator('[data-alarm-task="verify"]').click();await expect(page.locator('#toast')).toContainText('主控制電腦');
   await page.keyboard.press('m');
   await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   for(const [i,l] of levels.entries()){
@@ -475,6 +491,7 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#crew-scene .holo-name')).toHaveText('---');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL ?');
   await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#radar-scene')).not.toHaveClass(/radar-restored/);
   await expect(page.locator('#warp-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#warp-scene .warp-monitor text')).toHaveText('WARP LOCKED');await expect(page.locator('#warp-scene')).not.toHaveClass(/warp-ready/);
-  await expect(page.locator('#opening-dialog')).toBeVisible();await expect(page.locator('#opening-dialog')).toHaveAttribute('data-step','0');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await expect(page.locator('#opening-dialog')).not.toBeVisible();
+  await expect(page.locator('#opening-dialog')).toBeVisible();await expect(page.locator('#opening-dialog')).toHaveAttribute('data-step','0');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();if(await page.locator('#movement-tutorial-dialog').isVisible())await page.getByRole('button',{name:'略過說明',exact:true}).click();await expect(page.locator('#opening-dialog')).not.toBeVisible();
+  await expect(page.locator('#movement-tutorial-hud')).toBeVisible();
   expect(errors).toEqual([]);
 });
