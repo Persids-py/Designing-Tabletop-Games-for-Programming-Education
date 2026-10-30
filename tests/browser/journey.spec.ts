@@ -61,6 +61,11 @@ async function solveAlarmRoom(page:Page){
     if(task.id==='computer'){
       const found=page.locator('#movement-tutorial-dialog');await expect(found).toHaveAttribute('data-phase','found');await expect(found).toHaveAttribute('data-step','0');await expect(page.locator('#alarm-dialog')).not.toBeVisible();
       await expect(page.locator('#movement-tutorial-text')).toHaveText(foundLines[0]);
+      await page.setViewportSize({width:1366,height:768});await page.clock.runFor(64);
+      await page.screenshot({path:'test-results/audit-found-laptop.png',fullPage:true});
+      const foundCard=await found.boundingBox(),foundPlayer=await page.locator('#player').boundingBox();
+      expect(foundCard!.x>=foundPlayer!.x+foundPlayer!.width||foundCard!.x+foundCard!.width<=foundPlayer!.x||foundCard!.y>=foundPlayer!.y+foundPlayer!.height||foundCard!.y+foundCard!.height<=foundPlayer!.y,'首次抵達提示不遮住角色').toBe(true);
+      await page.setViewportSize({width:1440,height:1000});await page.clock.runFor(64);
       const stopped=await position(page);await page.keyboard.down('d');await page.clock.runFor(256);await page.keyboard.up('d');expect(await position(page)).toEqual(stopped);
       await expect(page.locator('#map')).toHaveClass(/tutorial-device-found/);
       await expect(page.locator('[data-alarm-task="computer"]>span')).toHaveCSS('background-color','rgb(255, 141, 134)');

@@ -9,6 +9,14 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
   const hud=document.createElement('div');hud.id='movement-tutorial-hud';hud.className='movement-tutorial-hud';hud.hidden=true;map.append(hud);document.body.append(dialog);
   let page=0;
   const active=()=>game.index===0&&!game.alarm.repaired.computer;
+  function position(){
+    if(!dialog.open||state.phase!=='found')return;
+    dialog.style.top='';dialog.style.bottom='';
+    const card=dialog.getBoundingClientRect();
+    const overlaps=(element:Element|null)=>{if(!element)return false;const rect=element.getBoundingClientRect();return card.left<rect.right&&card.right>rect.left&&card.top<rect.bottom&&card.bottom>rect.top;};
+    // 較矮的筆電視窗改放左上方，保留角色、故障設備與右側任務面板。
+    if(overlaps(document.getElementById('player'))||overlaps(map.querySelector('[data-alarm-task="computer"]'))){dialog.style.top='16px';dialog.style.bottom='auto';}
+  }
   function updateHud(){
     const visible=state.phase==='moving'||state.phase==='ready';hud.hidden=!visible;
     if(visible)hud.innerHTML=`<span>03 / 新手教學 2 · 角色移動</span><strong>${state.phase==='ready'?'已抵達主控制電腦':'前往警報燈光室 · 主控制電腦'}</strong><p>${state.phase==='ready'?'點擊主控制電腦，繼續維修提示':'W ↑　A ←　S ↓　D →　沿走廊靠近三角形標記'}</p>`;
@@ -27,7 +35,7 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
       for(const [key,direction] of [['W','向上'],['A','向左'],['S','向下'],['D','向右']]){const item=document.createElement('div');const dt=document.createElement('dt');dt.textContent=key;const dd=document.createElement('dd');dd.textContent=direction;item.append(dt,dd);keys.append(item);}content.append(keys);
       const task=document.createElement('p');task.className='movement-task';task.textContent='使用 WASD 移動角色，靠近第一個指定的故障設備。';content.append(task);
     }
-    dialog.scrollTop=0;dialog.querySelector<HTMLButtonElement>('[data-move-action="next"]')!.focus({preventScroll:true});
+    dialog.scrollTop=0;position();dialog.querySelector<HTMLButtonElement>('[data-move-action="next"]')!.focus({preventScroll:true});
   }
   function show(){callbacks.paused();hud.hidden=true;if(!dialog.open)dialog.showModal();render();}
   function dismiss(){dialog.close();if(state.phase==='intro')state.move();else state.dismiss();updateHud();callbacks.released();}
@@ -51,6 +59,7 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
     render();
   });
   dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
+  window.addEventListener('resize',position);window.addEventListener('scroll',position,{passive:true});new ResizeObserver(position).observe(map);
   return {
     dialog,
     get completed(){return state.phase==='entered';},
@@ -62,6 +71,6 @@ export function setupMovementTutorial(game:Game,map:HTMLElement,callbacks:{pause
       if(id==='computer'&&state.arrive(game.player,active())){found();return true;}
       callbacks.notify('請先沿走廊前往主控制電腦，依維修提示開始第一項任務。');return true;
     },
-    reset(){dialog.close();state.reset();clearTutorialCompletion();page=0;hud.hidden=true;map.classList.remove('tutorial-device-found');}
+    reset(){dialog.close();dialog.style.top='';dialog.style.bottom='';state.reset();clearTutorialCompletion();page=0;hud.hidden=true;map.classList.remove('tutorial-device-found');}
   };
 }
