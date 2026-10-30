@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('船員踏步、停止、左右轉向及卡牆後停止踏步',async({page})=>{
-  await page.clock.install();await page.goto('/');await page.clock.runFor(32);
+  await page.clock.install();await page.goto('/');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.clock.runFor(32);
   await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
   await page.keyboard.down('d');await page.clock.runFor(128);
   await expect(page.locator('#player')).toHaveAttribute('data-motion','walking');

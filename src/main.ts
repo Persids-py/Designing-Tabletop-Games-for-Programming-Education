@@ -1,4 +1,6 @@
 import './style.css';
+import './opening.css';
+import {setupOpeningUI} from './opening-ui';
 import './hitbox.css';
 import './camera.css';
 import './character.css';
@@ -92,10 +94,12 @@ const cargoUI=setupCargoUI(game,{changed:render,completed:()=>afterRepair('資�
 const crewUI=setupCrewUI(game,{changed:render,completed:()=>afterRepair('船員資料庫'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const radarUI=setupRadarUI(game,{changed:render,completed:()=>afterRepair('雷達測量室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const warpUI=setupWarpUI(game,{changed:render,completed:()=>afterRepair('主躍遷引擎'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
+const openingUI=setupOpeningUI(mapUrl,{opened:()=>keys.clear(),closed:()=>{keys.clear();map.focus({preventScroll:true});}});
 let toastTimer:ReturnType<typeof setTimeout>;
 function toast(message:string) { el('toast').textContent=message;el('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('visible'),3200); }
 function closeRepair() { game.close();repairDialog.close();keys.clear();map.focus({preventScroll:true}); }
 function openRepair(id:string) {
+  if(openingUI.dialog.open)return;
   if(id==='room-1'&&game.index===0){alarmUI.open(game.alarm.next.id);keys.clear();return;}
   if(id==='room-2'&&game.index===1){generatorUI.open(game.generator.next.id);keys.clear();return;}
   if(id==='room-3'&&game.index===2){lifeSupportUI.open(game.lifeSupport.next.id);keys.clear();return;}
@@ -256,7 +260,7 @@ function render() {
     }).join(''));
   }
 }
-el('markers').addEventListener('click',event=>{const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task],[data-warp-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else if(target.dataset.warpTask){keys.clear();warpUI.open(target.dataset.warpTask as WarpTaskId);}else openRepair(target.dataset.room!);});
+el('markers').addEventListener('click',event=>{if(openingUI.dialog.open)return;const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task],[data-warp-task]');if(!target)return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else if(target.dataset.warpTask){keys.clear();warpUI.open(target.dataset.warpTask as WarpTaskId);}else openRepair(target.dataset.room!);});
 el('close-dialog').onclick=closeRepair;
 repairDialog.addEventListener('cancel',event=>{event.preventDefault();closeRepair();});
 el('repair').onclick=()=>{
@@ -269,13 +273,13 @@ function afterRepair(name:string){
   repairDialog.close();keys.clear();render();
   if(game.completed)completeDialog.showModal();else{toast(`${name}已修復，下一站：${game.current.roomName}`);map.focus({preventScroll:true});}
 }
-el('restart').onclick=()=>{game.reset();keys.clear();completeDialog.close();render();map.focus({preventScroll:true});toast('新的維修旅程開始，前往警報燈光室');};
+el('restart').onclick=()=>{game.reset();keys.clear();completeDialog.close();render();map.focus({preventScroll:true});toast('新的維修旅程開始，前往警報燈光室');openingUI.open();};
 completeDialog.addEventListener('cancel',event=>event.preventDefault());
 const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowright'];
 document.addEventListener('keydown',event=>{
   if((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]'))return;
   const key=event.key.toLowerCase();
-  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open&&!warpUI.dialog.open){event.preventDefault();keys.add(key);}
+  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open&&!warpUI.dialog.open&&!openingUI.dialog.open){event.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));
 window.addEventListener('blur',()=>keys.clear());
@@ -287,7 +291,7 @@ el('retry').onclick=()=>{image.src=`${mapUrl}?retry=${Date.now()}`;};
 let previous=performance.now(),wasNear=false;
 function frame(now:number) {
   const dt=Math.min((now-previous)/1000,.04);previous=now;
-  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open){
+  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open){
     let dx=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
     let dy=Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup'));
     const length=Math.hypot(dx,dy);if(length){dx/=length;dy/=length;game.player=move(game.player,dx*speed*dt,dy*speed*dt);}
@@ -300,4 +304,4 @@ function frame(now:number) {
   requestAnimationFrame(frame);
 }
 function drawPlayer(p:Point){el('player').setAttribute('transform',`translate(${p.x} ${p.y})`);drawCharacter(p);drawHitbox(p);}
-render();requestAnimationFrame(frame);
+render();requestAnimationFrame(frame);openingUI.open();
