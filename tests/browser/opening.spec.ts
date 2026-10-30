@@ -21,9 +21,9 @@ test('開場全文、AI 台詞、返回、略過與操作鎖定',async({page})=>
       await page.screenshot({path:'test-results/opening-04-mission.png',fullPage:true});await page.keyboard.down('d');await dialog.getByRole('button',{name:'進入探索者號 →'}).click();
     }else await dialog.getByRole('button',{name:'下一段 →'}).click();
   }
-  await expect(dialog).not.toBeVisible();await page.clock.runFor(200);await expect(player).toHaveAttribute('transform',initial!);await page.keyboard.up('d');
+  await expect(dialog).not.toBeVisible();await expect(page.locator('#interface-guide-dialog')).toBeVisible();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await page.clock.runFor(200);await expect(player).toHaveAttribute('transform',initial!);await page.keyboard.up('d');
   await expect(page.locator('#target-title')).toHaveText('警報燈光室');await expect(page.locator('#target-status')).toContainText('0 / 4');
   await page.keyboard.down('d');await page.clock.runFor(128);await page.keyboard.up('d');expect(await player.getAttribute('transform')).not.toEqual(initial);
-  await page.reload();await expect(dialog).toBeVisible();await dialog.getByRole('button',{name:'略過開場',exact:true}).click();await expect(dialog).not.toBeVisible();
-  await page.reload();await expect(dialog).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();expect(errors).toEqual([]);
+  await page.reload();await expect(dialog).toBeVisible();await dialog.getByRole('button',{name:'略過開場',exact:true}).click();await expect(dialog).not.toBeVisible();await expect(page.locator('#interface-guide-dialog')).toBeVisible();await page.getByRole('button',{name:'略過導覽',exact:true}).click();
+  await page.reload();await expect(dialog).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();await expect(page.locator('#interface-guide-dialog')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#interface-guide-dialog')).not.toBeVisible();expect(errors).toEqual([]);
 });

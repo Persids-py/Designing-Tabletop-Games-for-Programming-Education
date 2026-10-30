@@ -430,7 +430,7 @@ async function solveWarpRoom(page:Page){
 test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   // 固定虛擬時鐘，避免操作延遲在按鍵按住期間額外推進角色。
-  await page.clock.install({time:new Date('2026-10-30T00:00:00Z')});await page.goto('/');await page.clock.pauseAt(new Date('2026-10-30T00:01:00Z'));await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.clock.runFor(32);
+  await page.clock.install({time:new Date('2026-10-30T00:00:00Z')});await page.goto('/');await page.clock.pauseAt(new Date('2026-10-30T00:01:00Z'));await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await page.clock.runFor(32);
   await expect(page.locator('#map-image')).toHaveJSProperty('naturalWidth',2752);
   await expect(page.locator('#map')).toHaveAttribute('data-view','follow');
   await expect(page.locator('#target-arrow')).toBeVisible();
@@ -475,6 +475,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#crew-scene .holo-name')).toHaveText('---');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL ?');
   await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#radar-scene')).not.toHaveClass(/radar-restored/);
   await expect(page.locator('#warp-scene')).toHaveAttribute('data-stage','fault');await expect(page.locator('#warp-scene .warp-monitor text')).toHaveText('WARP LOCKED');await expect(page.locator('#warp-scene')).not.toHaveClass(/warp-ready/);
-  await expect(page.locator('#opening-dialog')).toBeVisible();await expect(page.locator('#opening-dialog')).toHaveAttribute('data-step','0');await page.getByRole('button',{name:'略過開場',exact:true}).click();await expect(page.locator('#opening-dialog')).not.toBeVisible();
+  await expect(page.locator('#opening-dialog')).toBeVisible();await expect(page.locator('#opening-dialog')).toHaveAttribute('data-step','0');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();await expect(page.locator('#opening-dialog')).not.toBeVisible();
   expect(errors).toEqual([]);
 });
