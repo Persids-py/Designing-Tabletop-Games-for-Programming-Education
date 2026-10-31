@@ -13,6 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
+import {hintStorageKey,alarmHintTasks} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -92,16 +93,41 @@ async function solveAlarmRoom(page:Page){
       const returning=await page.context().newPage();await returning.goto('/');await expect(returning.locator('#player')).toBeVisible();await expect(returning.locator('dialog[open]')).toHaveCount(0);await expect(returning.locator('#movement-tutorial-hud')).not.toBeVisible();await expect(returning.locator('#count')).toHaveText('0 / 10');await returning.close();
     }else await page.locator(`[data-alarm-task="${task.id}"]`).click();
     await expect(page.locator('#alarm-title')).toHaveText(task.name);
+    await expect(page.locator('#repair-handbook')).not.toBeVisible();
+    if(task.id!=='computer'){
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#handbook-tabpanel>h4')).toHaveText(`${alarmHintTasks[task.id].taskId}｜${alarmHintTasks[task.id].title}`);await expect(page.locator('.handbook-hint')).toHaveCount(0);
+      await page.getByRole('button',{name:'查看提示 1',exact:true}).click();await expect(page.locator('.handbook-hint p')).toHaveText(alarmHintTasks[task.id].hints[0]);await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).toBeVisible();
+    }
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
     await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
     if(task.id==='computer'){
       await page.setViewportSize({width:1150,height:850});await page.clock.runFor(32);
+      await page.locator('input[value="B"]').check();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await expect(page.locator('#repair-handbook .handbook-concepts li')).toHaveCount(4);await expect(page.locator('#repair-handbook .handbook-concepts pre')).toHaveText('print("Hello")\nprint("System Ready")');
+      const question=await page.locator('#alarm-form').boundingBox(),panel=await page.locator('#repair-handbook').boundingBox();expect(question!.x+question!.width).toBeLessThan(panel!.x);
+      await page.screenshot({path:'test-results/handbook-01-concepts.png',fullPage:true});
+      await page.getByRole('tab',{name:'目前任務提示'}).click();await expect(page.locator('.handbook-hint')).toHaveCount(0);
+      await page.getByRole('button',{name:'查看提示 1',exact:true}).click();await page.getByRole('button',{name:'查看提示 2',exact:true}).click();await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).evaluate(el=>el.dispatchEvent(new MouseEvent('click',{bubbles:true})));await expect(page.locator('[data-hint-level="3"]')).toHaveCount(0);
+      await page.setViewportSize({width:700,height:850});await page.screenshot({path:'test-results/handbook-02-drawer.png',fullPage:true});
+      const drawer=await page.locator('#repair-handbook').boundingBox();expect(drawer!.y+drawer!.height).toBeLessThanOrEqual(850);expect(drawer!.y).toBeGreaterThan(350);
+      await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).toBeVisible();await expect(page.locator('input[value="B"]')).toBeChecked();await page.setViewportSize({width:1150,height:850});
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.locator('.alarm-instruction').click();await expect(page.locator('#repair-handbook')).not.toBeVisible();
       await page.screenshot({path:'test-results/alarm-01-computer.png',fullPage:true});
       await page.locator('input[value="B"]').check();await page.getByRole('button',{name:'修復電腦 ↗'}).click();
       await expect(page.locator('#alarm-feedback')).toContainText('區分大小寫');await expect(page.locator('#count')).toHaveText('0 / 10');
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await expect(page.locator('.handbook-status')).toContainText('答錯 1 次');await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();await page.keyboard.press('Escape');
+      await page.getByRole('button',{name:'修復電腦 ↗'}).click();await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();await expect(page.locator('[data-hint-level="3"] p')).toHaveText(alarmHintTasks.computer.hints[2]);
+      await page.screenshot({path:'test-results/handbook-03-diagnosis.png',fullPage:true});await page.getByRole('button',{name:'收合 AI 維修手冊',exact:true}).click();
+      const savedTab=await page.context().newPage();await savedTab.clock.install({time:new Date('2026-11-01T00:00:00Z')});await savedTab.goto('/');await savedTab.clock.pauseAt(new Date('2026-11-01T00:01:00Z'));
+      expect(await savedTab.evaluate(key=>JSON.parse(localStorage.getItem(key)!)['1-1'],hintStorageKey)).toEqual({revealedHintLevel:3,attemptCount:2,diagnosisUnlocked:true});
+      for(const p of route(await position(savedTab),task.point,alarmRadius))await walkTo(savedTab,p);
+      await savedTab.locator('[data-alarm-task="computer"]').click();await savedTab.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await savedTab.getByRole('tab',{name:'目前任務提示'}).click();await expect(savedTab.locator('.handbook-hint')).toHaveCount(3);await expect(savedTab.locator('.handbook-status')).toContainText('答錯 2 次');await savedTab.close();
       await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).not.toBeVisible();
       await page.locator('[data-alarm-task="computer"]').click();
       await expect(page.locator('#tutorial-completion-dialog')).not.toBeVisible();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('tab',{name:'目前任務提示'}).click();await expect(page.locator('.handbook-hint')).toHaveCount(3);await expect(page.locator('.handbook-status')).toContainText('答錯 2 次');await page.keyboard.press('Escape');
       await page.locator('input[value="A"]').check();await page.getByRole('button',{name:'修復電腦 ↗'}).click();
       await expect(page.locator('.terminal-output')).toHaveText('SYSTEM CHECK');
       await expect(page.locator('#alarm-scene')).toHaveClass(/computer-online/);
@@ -129,6 +155,7 @@ async function solveAlarmRoom(page:Page){
       await page.getByRole('button',{name:'啟動警報 ↗'}).click();
       await expect(page.locator('#alarm-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('1 / 10');
       await expect(page.locator('#alarm-scene')).toHaveAttribute('data-stage','repaired');
+      await page.locator('#handbook-review-trigger').click();await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(4);await expect(page.locator('#count')).toHaveText('1 / 10');const reviewPosition=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(reviewPosition);await page.keyboard.press('Escape');
       await page.clock.runFor(800);await page.screenshot({path:'test-results/alarm-05-restored.png',fullPage:true});
       continue;
     }
@@ -514,5 +541,6 @@ test('鍵盤沿通道走完十關、面板、縮放與重玩',async({page})=>{
   await expect(page.locator('#opening-dialog')).toBeVisible();await expect(page.locator('#opening-dialog')).toHaveAttribute('data-step','0');await page.getByRole('button',{name:'略過開場',exact:true}).click();await page.getByRole('button',{name:'略過導覽',exact:true}).click();if(await page.locator('#movement-tutorial-dialog').isVisible())await page.getByRole('button',{name:'略過說明',exact:true}).click();await expect(page.locator('#opening-dialog')).not.toBeVisible();
   await expect(page.locator('#movement-tutorial-hud')).toBeVisible();
   expect(await page.evaluate(key=>localStorage.getItem(key),tutorialCompletionKey)).toBeNull();
+  expect(await page.evaluate(key=>localStorage.getItem(key),hintStorageKey)).toBeNull();
   expect(errors).toEqual([]);
 });

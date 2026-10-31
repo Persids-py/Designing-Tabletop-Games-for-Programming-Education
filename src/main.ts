@@ -6,6 +6,8 @@ import {setupInterfaceGuide} from './interface-guide-ui';
 import './movement-tutorial.css';
 import {setupMovementTutorial} from './movement-tutorial-ui';
 import './tutorial-completion.css';
+import './repair-handbook.css';
+import {setupHandbookReview} from './repair-handbook-ui';
 import {setupTutorialCompletion} from './tutorial-completion-ui';
 import './hitbox.css';
 import './camera.css';
@@ -68,6 +70,7 @@ app.innerHTML=`
 <dialog id="repair-dialog" aria-labelledby="dialog-title"><button class="close" id="close-dialog" aria-label="關閉維修面板">×</button><p class="eyebrow" id="dialog-step"></p><div class="repair-symbol">⌁</div><h2 id="dialog-title"></h2><p id="dialog-theme"></p><div class="fault-note"><span class="status-dot"></span>設備故障，等待維修</div><p class="dialog-description">抵達維修點。點擊下方按鈕，恢復這個系統的運作。</p><button id="repair" class="primary">維修 <span>↗</span></button></dialog>
 <dialog id="complete-dialog" aria-labelledby="complete-title"><p class="eyebrow">任務完成 / MISSION COMPLETE</p><div class="success-symbol">✓</div><h2 id="complete-title">探索者號返航成功</h2><p>10 個系統維修與安全測試已完成。<br>躍遷啟動成功，探索者號返回安全航線。</p><button id="restart" class="primary">重新開始 <span>↻</span></button></dialog>`;
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
+const handbookReview=setupHandbookReview();
 const map=el('map');
 // 圖片、角色、維修點與碰撞疊圖共用一個世界圖層，鏡頭只改變顯示位置。
 const world=document.createElement('div');world.id='map-world';world.className='map-world';
@@ -90,6 +93,7 @@ const drawWarpScene=setupWarpScene(world);
 const repairDialog=el<HTMLDialogElement>('repair-dialog');
 const completeDialog=el<HTMLDialogElement>('complete-dialog');
 const keys=new Set<string>();
+handbookReview.button.addEventListener('click',()=>keys.clear());handbookReview.dialog.addEventListener('close',()=>keys.clear());
 const alarmUI=setupAlarmUI(game,{changed:render,completed:()=>afterRepair('警報燈光室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const generatorUI=setupGeneratorUI(game,{changed:render,completed:()=>afterRepair('發電機室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
 const lifeSupportUI=setupLifeSupportUI(game,{changed:render,completed:()=>afterRepair('維生系統室'),closed:()=>{keys.clear();map.focus({preventScroll:true});},notify:toast});
@@ -111,7 +115,7 @@ let toastTimer:ReturnType<typeof setTimeout>;
 function toast(message:string) { el('toast').textContent=message;el('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('visible'),3200); }
 function closeRepair() { game.close();repairDialog.close();keys.clear();map.focus({preventScroll:true}); }
 function openRepair(id:string) {
-  if(openingUI.dialog.open||interfaceGuide.dialog.open||movementTutorial.dialog.open||tutorialCompletion.dialog.open)return;
+  if(openingUI.dialog.open||interfaceGuide.dialog.open||movementTutorial.dialog.open||tutorialCompletion.dialog.open||handbookReview.dialog.open)return;
   if(id==='room-1'&&movementTutorial.deviceClick('computer'))return;
   if(id==='room-1'&&game.index===0){alarmUI.open(game.alarm.next.id);keys.clear();return;}
   if(id==='room-2'&&game.index===1){generatorUI.open(game.generator.next.id);keys.clear();return;}
@@ -131,6 +135,7 @@ function openRepair(id:string) {
   repairDialog.showModal();
 }
 function render() {
+  handbookReview.button.hidden=game.index<1;
   drawAlarmScene(game.alarm);
   drawGeneratorScene(game.generator);
   drawLifeSupportScene(game.lifeSupport);
@@ -273,7 +278,7 @@ function render() {
     }).join(''));
   }
 }
-el('markers').addEventListener('click',event=>{if(openingUI.dialog.open||interfaceGuide.dialog.open||movementTutorial.dialog.open||tutorialCompletion.dialog.open)return;const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task],[data-warp-task]');if(!target)return;if(target.dataset.alarmTask&&movementTutorial.deviceClick(target.dataset.alarmTask))return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else if(target.dataset.warpTask){keys.clear();warpUI.open(target.dataset.warpTask as WarpTaskId);}else openRepair(target.dataset.room!);});
+el('markers').addEventListener('click',event=>{if(openingUI.dialog.open||interfaceGuide.dialog.open||movementTutorial.dialog.open||tutorialCompletion.dialog.open||handbookReview.dialog.open)return;const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-room],[data-alarm-task],[data-generator-task],[data-life-support-task],[data-airlock-task],[data-cooling-task],[data-booster-task],[data-cargo-task],[data-crew-task],[data-radar-task],[data-warp-task]');if(!target)return;if(target.dataset.alarmTask&&movementTutorial.deviceClick(target.dataset.alarmTask))return;if(target.dataset.alarmTask){keys.clear();alarmUI.open(target.dataset.alarmTask as AlarmTaskId);}else if(target.dataset.generatorTask){keys.clear();generatorUI.open(target.dataset.generatorTask as GeneratorTaskId);}else if(target.dataset.lifeSupportTask){keys.clear();lifeSupportUI.open(target.dataset.lifeSupportTask as LifeSupportTaskId);}else if(target.dataset.airlockTask){keys.clear();airlockUI.open(target.dataset.airlockTask as AirlockTaskId);}else if(target.dataset.coolingTask){keys.clear();coolingUI.open(target.dataset.coolingTask as CoolingTaskId);}else if(target.dataset.boosterTask){keys.clear();boosterUI.open(target.dataset.boosterTask as BoosterTaskId);}else if(target.dataset.cargoTask){keys.clear();cargoUI.open(target.dataset.cargoTask as CargoTaskId);}else if(target.dataset.crewTask){keys.clear();crewUI.open(target.dataset.crewTask as CrewTaskId);}else if(target.dataset.radarTask){keys.clear();radarUI.open(target.dataset.radarTask as RadarTaskId);}else if(target.dataset.warpTask){keys.clear();warpUI.open(target.dataset.warpTask as WarpTaskId);}else openRepair(target.dataset.room!);});
 el('close-dialog').onclick=closeRepair;
 repairDialog.addEventListener('cancel',event=>{event.preventDefault();closeRepair();});
 el('repair').onclick=()=>{
@@ -292,7 +297,7 @@ const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowrigh
 document.addEventListener('keydown',event=>{
   if((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]'))return;
   const key=event.key.toLowerCase();
-  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open&&!warpUI.dialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open){event.preventDefault();keys.add(key);}
+  if(movementKeys.includes(key)&&!repairDialog.open&&!completeDialog.open&&!alarmUI.dialog.open&&!generatorUI.dialog.open&&!lifeSupportUI.dialog.open&&!airlockUI.dialog.open&&!coolingUI.dialog.open&&!boosterUI.dialog.open&&!cargoUI.dialog.open&&!crewUI.dialog.open&&!radarUI.dialog.open&&!warpUI.dialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open&&!handbookReview.dialog.open){event.preventDefault();keys.add(key);}
 });
 document.addEventListener('keyup',event=>keys.delete(event.key.toLowerCase()));
 window.addEventListener('blur',()=>keys.clear());
@@ -304,12 +309,12 @@ el('retry').onclick=()=>{image.src=`${mapUrl}?retry=${Date.now()}`;};
 let previous=performance.now(),wasNear=false,lastProximity='';
 function frame(now:number) {
   const dt=Math.min((now-previous)/1000,.04);previous=now;
-  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open){
+  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open&&!handbookReview.dialog.open){
     let dx=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
     let dy=Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup'));
     const length=Math.hypot(dx,dy);if(length){dx/=length;dy/=length;game.player=move(game.player,dx*speed*dt,dy*speed*dt);}
   }
-  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open)movementTutorial.update();
+  if(!game.opened&&!game.completed&&!repairDialog.open&&!completeDialog.open&&!openingUI.dialog.open&&!interfaceGuide.dialog.open&&!movementTutorial.dialog.open&&!tutorialCompletion.dialog.open&&!handbookReview.dialog.open)movementTutorial.update();
   drawPlayer(game.player);
   camera.update(game.player,game.navigation?.point,game.navigation?.name);
   const near=game.nearTarget;

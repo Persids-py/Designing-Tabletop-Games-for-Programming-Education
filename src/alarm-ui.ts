@@ -1,19 +1,23 @@
 import {alarmTasks,bootOrder,type AlarmTaskId} from './alarm';
 import type {Game} from './game';
+import {setupRepairHandbook} from './repair-handbook-ui';
 
 interface Callbacks {changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 const escape=(value:string)=>value.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 export function setupAlarmUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='alarm-dialog';dialog.className='alarm-dialog';dialog.setAttribute('aria-labelledby','alarm-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints);
   let selected:AlarmTaskId='computer',symbol='',order:string[]=['SIREN ON','SYSTEM CHECK','RED LIGHT ON'];
   let dragging:number|null=null;
   const subtitle={computer:'1-1 / 指令修復',light:'1-2 / 符號填空',broadcast:'1-3 / 修改廣播',verify:'1-4 / 啟動排序'};
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function render(){
     const task=alarmTasks.find(t=>t.id===selected)!;
     const done=game.alarm.repaired[selected];
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第一關 / 失控的警報系統</p><div class="alarm-stages" aria-label="設備修復進度">${alarmTasks.map((t,i)=>`<span class="${game.alarm.repaired[t.id]?'done':t.id===selected?'current':''}">${game.alarm.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>${subtitle[selected]}</span><h2 id="alarm-title">${task.name}</h2></div><div id="alarm-body"></div><p id="alarm-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#alarm-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(done){
       const output=selected==='verify'?bootOrder:[bootOrder[selected==='computer'?0:selected==='light'?1:2]];
       body.innerHTML=`<div class="device-success">✓ 設備已修復</div><pre class="terminal-output">${output.join('\n')}</pre><p class="alarm-note">修復狀態已保留。返回船艙，繼續查看其他設備。</p><button type="button" data-action="close" class="primary">返回船艙 <span>→</span></button>`;return;
@@ -39,10 +43,10 @@ export function setupAlarmUI(game:Game,callbacks:Callbacks){
     const form=dialog.querySelector<HTMLFormElement>('form')!;
     const answer=selected==='computer'?new FormData(form).get('fix-command'):selected==='light'?symbol:selected==='broadcast'?new FormData(form).get('broadcast-message'):[...order];
     const result=game.submitAlarm(selected,answer);
-    if(!result.success){const feedback=dialog.querySelector<HTMLElement>('#alarm-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
+    if(!result.success){handbook.refresh();const feedback=dialog.querySelector<HTMLElement>('#alarm-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
     if(selected==='verify'){
       if(!game.repair('room-1')){callbacks.notify('驗證完成，請在啟動台附近完成修復。');return;}
-      dialog.close();callbacks.completed();return;
+      handbook.close(false);dialog.close();callbacks.completed();return;
     }
     render();callbacks.changed();
     const feedback=dialog.querySelector<HTMLElement>('#alarm-feedback')!;feedback.textContent=result.message;
@@ -68,5 +72,5 @@ export function setupAlarmUI(game:Game,callbacks:Callbacks){
   });
   dialog.addEventListener('dragend',()=>{dragging=null;});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:AlarmTaskId){const error=game.openAlarm(id);if(error){callbacks.notify(error);return;}selected=id;symbol='';order=['SIREN ON','SYSTEM CHECK','RED LIGHT ON'];render();dialog.showModal();}};
+  return {dialog,open(id:AlarmTaskId){const error=game.openAlarm(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);symbol='';order=['SIREN ON','SYSTEM CHECK','RED LIGHT ON'];render();dialog.showModal();}};
 }

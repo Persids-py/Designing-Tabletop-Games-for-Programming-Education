@@ -1,4 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
+import {RepairHintState} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -28,6 +29,7 @@ const definitions: [string,string,string,number,number][] = [
 ];
 export const levels: Level[] = definitions.map(([roomName,repairTheme,concept,x,y],i)=>({id:`room-${i+1}`,roomName,repairTheme,concept,interactionPoint:point(x,y),interactionRadius:65*SCALE,challengeType:i===0?'alarm':i===1?'generator':i===2?'life-support':i===3?'airlock':i===4?'cooling':i===5?'booster':i===6?'cargo':i===7?'crew':i===8?'radar':'warp',challengeConfig:null}));
 export class Game {
+  hints=new RepairHintState();
   index=0;
   player={...spawn};
   opened: string|null=null;
@@ -97,7 +99,10 @@ export class Game {
   submitAlarm(id:AlarmTaskId,answer:unknown):AlarmResult{
     const task=alarmTasks.find(t=>t.id===id);
     if(this.index!==0||this.opened!==levels[0].id||this.alarmTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>alarmRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.alarm.submit(id,answer);
+    const eligible=!this.alarm.repaired[id]&&(id!=='verify'||this.alarm.ready);
+    const result=this.alarm.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(id);
+    return result;
   }
   openGenerator(id:GeneratorTaskId):string|null{
     const task=generatorTasks.find(t=>t.id===id);
@@ -247,5 +252,5 @@ export class Game {
     }else if(!this.near(this.current))return false;
     this.close(); this.index++; return true;
   }
-  reset() { this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState();this.airlock=new AirlockState();this.cooling=new CoolingState();this.booster=new BoosterState();this.cargo=new CargoState();this.crew=new CrewState();this.radar=new RadarState();this.warp=new WarpState(); }
+  reset() { this.hints.reset();this.index=0; this.player={...spawn}; this.close();this.alarm=new AlarmState();this.generator=new GeneratorState();this.lifeSupport=new LifeSupportState();this.airlock=new AirlockState();this.cooling=new CoolingState();this.booster=new BoosterState();this.cargo=new CargoState();this.crew=new CrewState();this.radar=new RadarState();this.warp=new WarpState(); }
 }
