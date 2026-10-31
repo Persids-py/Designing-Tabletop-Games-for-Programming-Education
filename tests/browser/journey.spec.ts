@@ -93,7 +93,7 @@ async function solveAlarmRoom(page:Page){
       const returning=await page.context().newPage();await returning.goto('/');await expect(returning.locator('#player')).toBeVisible();await expect(returning.locator('dialog[open]')).toHaveCount(0);await expect(returning.locator('#movement-tutorial-hud')).not.toBeVisible();await expect(returning.locator('#count')).toHaveText('0 / 10');await returning.close();
     }else await page.locator(`[data-alarm-task="${task.id}"]`).click();
     await expect(page.locator('#alarm-title')).toHaveText(task.name);
-    await expect(page.locator('#repair-handbook')).not.toBeVisible();
+    await expect(page.locator('#repair-handbook')).toBeVisible();await expect(page.getByRole('button',{name:'▤ 維修手冊',exact:true})).toHaveAttribute('aria-expanded','true');await page.getByRole('button',{name:'收合 AI 維修手冊',exact:true}).click();await expect(page.locator('#repair-handbook')).not.toBeVisible();
     if(task.id!=='computer'){
       await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('tab',{name:'目前任務提示'}).click();
       await expect(page.locator('#handbook-tabpanel>h4')).toHaveText(`${alarmHintTasks[task.id].taskId}｜${alarmHintTasks[task.id].title}`);await expect(page.locator('.handbook-hint')).toHaveCount(0);
@@ -123,11 +123,11 @@ async function solveAlarmRoom(page:Page){
       const savedTab=await page.context().newPage();await savedTab.clock.install({time:new Date('2026-11-01T00:00:00Z')});await savedTab.goto('/');await savedTab.clock.pauseAt(new Date('2026-11-01T00:01:00Z'));
       expect(await savedTab.evaluate(key=>JSON.parse(localStorage.getItem(key)!)['1-1'],hintStorageKey)).toEqual({revealedHintLevel:3,attemptCount:2,diagnosisUnlocked:true});
       for(const p of route(await position(savedTab),task.point,alarmRadius))await walkTo(savedTab,p);
-      await savedTab.locator('[data-alarm-task="computer"]').click();await savedTab.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await savedTab.getByRole('tab',{name:'目前任務提示'}).click();await expect(savedTab.locator('.handbook-hint')).toHaveCount(3);await expect(savedTab.locator('.handbook-status')).toContainText('答錯 2 次');await savedTab.close();
+      await savedTab.locator('[data-alarm-task="computer"]').click();await expect(savedTab.locator('#repair-handbook')).toBeVisible();await savedTab.getByRole('tab',{name:'目前任務提示'}).click();await expect(savedTab.locator('.handbook-hint')).toHaveCount(3);await expect(savedTab.locator('.handbook-status')).toContainText('答錯 2 次');await savedTab.close();
       await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).not.toBeVisible();
       await page.locator('[data-alarm-task="computer"]').click();
       await expect(page.locator('#tutorial-completion-dialog')).not.toBeVisible();
-      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('tab',{name:'目前任務提示'}).click();await expect(page.locator('.handbook-hint')).toHaveCount(3);await expect(page.locator('.handbook-status')).toContainText('答錯 2 次');await page.keyboard.press('Escape');
+      await expect(page.locator('#repair-handbook')).toBeVisible();await page.getByRole('tab',{name:'目前任務提示'}).click();await expect(page.locator('.handbook-hint')).toHaveCount(3);await expect(page.locator('.handbook-status')).toContainText('答錯 2 次');await page.keyboard.press('Escape');
       await page.locator('input[value="A"]').check();await page.getByRole('button',{name:'修復電腦 ↗'}).click();
       await expect(page.locator('.terminal-output')).toHaveText('SYSTEM CHECK');
       await expect(page.locator('#alarm-scene')).toHaveClass(/computer-online/);

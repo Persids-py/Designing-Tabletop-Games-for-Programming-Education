@@ -45,7 +45,7 @@ export function setupRepairHandbook(dialog:HTMLDialogElement,state:RepairHintSta
   dialog.addEventListener('pointerdown',event=>{if(opened&&!panel.contains(event.target as Node)&&!trigger.contains(event.target as Node))close(false);});
   return {
     mount(id:AlarmTaskId){selected=id;dialog.querySelector('.alarm-heading')!.append(trigger);dialog.append(panel);if(opened)render();},
-    select(id:AlarmTaskId){selected=id;tab='concepts';close(false);},
+    select(id:AlarmTaskId){selected=id;tab='concepts';opened=true;panel.hidden=false;dialog.classList.add('handbook-open');trigger.setAttribute('aria-expanded','true');},
     refresh(){if(opened)render();},close
   };
 }
