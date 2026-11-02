@@ -1,4 +1,4 @@
-import {alarmHandbook,alarmHintTasks,generatorHandbook,lifeSupportHandbook,airlockHandbook,coolingHandbook,boosterHandbook,cargoHandbook,crewHandbook,radarHandbook,type Handbook,type HintTask,type RepairHintState} from './repair-handbook';
+import {alarmHandbook,alarmHintTasks,generatorHandbook,lifeSupportHandbook,airlockHandbook,coolingHandbook,boosterHandbook,cargoHandbook,crewHandbook,radarHandbook,warpHandbook,type Handbook,type HintTask,type RepairHintState} from './repair-handbook';
 
 export function conceptContent(recap=false,handbook:Handbook=alarmHandbook){
   const content=document.createElement('div');content.className='handbook-concepts';
@@ -54,8 +54,12 @@ export function setupHandbookReview(){
   dialog.innerHTML='<button type="button" class="close" aria-label="關閉觀念回顧">×</button><h2 id="handbook-review-title">第一關 · 觀念回顧</h2>';
   dialog.append(conceptContent(true));document.body.append(dialog);
   const button=document.createElement('button');button.type='button';button.className='handbook-review-trigger';button.id='handbook-review-trigger';button.textContent='▤ 第一關觀念回顧';button.hidden=true;document.querySelector('.route-card')!.append(button);
-  button.onclick=()=>{if(!document.querySelector('dialog[open]'))dialog.showModal();};
-  const close=()=>{dialog.close();button.focus({preventScroll:true});};dialog.querySelector('button')!.onclick=close;dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+  let returnFocus=button;
+  button.onclick=()=>{if(!document.querySelector('dialog[open]')){returnFocus=button;dialog.showModal();}};
+  const completedButton=document.createElement('button');completedButton.type='button';completedButton.className='handbook-review-trigger';completedButton.id='completed-handbook-review';completedButton.textContent='▤ 十關觀念回顧';
+  document.querySelector('#complete-dialog')!.append(completedButton);
+  completedButton.onclick=()=>{if(reviewedCount===10&&document.querySelector<HTMLDialogElement>('#complete-dialog')!.open&&!dialog.open){returnFocus=completedButton;dialog.showModal();}};
+  const close=()=>{dialog.close();returnFocus.focus({preventScroll:true});};dialog.querySelector('button')!.onclick=close;dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
   let reviewedCount=-1;
   return {button,dialog,update(completed:number){
     if(completed===reviewedCount)return;reviewedCount=completed;
@@ -63,7 +67,7 @@ export function setupHandbookReview(){
     button.textContent=completed>=2?'▤ 已修復關卡觀念回顧':'▤ 第一關觀念回顧';
     const title=dialog.querySelector('h2')!;title.textContent=completed>=2?'已修復關卡 · 觀念回顧':'第一關 · 觀念回顧';
     dialog.querySelectorAll('.handbook-concepts,.review-level-title').forEach(node=>node.remove());
-    for(const book of [alarmHandbook,generatorHandbook,lifeSupportHandbook,airlockHandbook,coolingHandbook,boosterHandbook,cargoHandbook,crewHandbook,radarHandbook]){
+    for(const book of [alarmHandbook,generatorHandbook,lifeSupportHandbook,airlockHandbook,coolingHandbook,boosterHandbook,cargoHandbook,crewHandbook,radarHandbook,warpHandbook]){
       if(completed<book.levelId)continue;
       const heading=document.createElement('h3');heading.className='review-level-title';heading.textContent=`第${book.levelId}關 · ${book.title}`;dialog.append(heading,conceptContent(true,book));
     }

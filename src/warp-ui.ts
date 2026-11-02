@@ -1,17 +1,22 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {warpHandbook,warpHintTasks} from './repair-handbook';
 import {warpTasks,systemKeys,systemNames,warpCases,warpReady,type WarpTaskId} from './warp';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupWarpUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='warp-dialog';dialog.className='alarm-dialog warp-dialog';dialog.setAttribute('aria-labelledby','warp-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,warpHandbook,warpHintTasks);
   let selected:WarpTaskId='nav',timer:ReturnType<typeof setInterval>|undefined;
   const stop=()=>{if(timer!==undefined)clearInterval(timer);timer=undefined;};
-  function close(){stop();game.close();dialog.close();callbacks.changed();callbacks.closed();}
+  function close(){handbook.close(false);stop();game.close();dialog.close();callbacks.changed();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#warp-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function systems(){return `<div class="warp-systems" aria-label="實際五項系統狀態">${systemKeys.map(key=>`<div class="${game.warp.systems[key]?'online':'offline'}"><span>${systemNames[key]} <code>${key}</code></span><b>${game.warp.systems[key]?'True':'False'}</b></div>`).join('')}</div>`;}
   function render(){
     const state=game.warp,task=warpTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第十關 / 探索者號的最終躍遷</p><div class="alarm-stages" aria-label="最終修復進度">${warpTasks.map((t,i)=>`<span class="${state.repaired[t.id]?'done':t.id===selected?'current':''}">${state.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>10-${warpTasks.indexOf(task)+1} / 綜合邏輯專案</span><h2 id="warp-title">${task.name}</h2></div><div id="warp-body"></div><p id="warp-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#warp-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(state.launching){body.innerHTML=`<p class="alarm-instruction">五項實際狀態符合安全規則，藍色能源核心充能中。</p><div class="warp-countdown" role="status" aria-live="polite"><span>躍遷倒數</span><strong id="warp-countdown">${state.countdown}</strong></div><p class="alarm-note">關閉面板會取消倒數，已完成的修復與導航準備仍保留。</p>`;return;}
     if(state.repaired[selected]){
       if(selected==='verify'){
@@ -32,7 +37,7 @@ export function setupWarpUI(game:Game,callbacks:Callbacks){
     }
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);const answer=selected==='nav'?data.get('nav-key'):selected==='manual'?{reason:data.get('manual-reason'),code:data.get('manual-code')}:selected==='logic'?Array.from({length:4},(_,i)=>dialog.querySelector<HTMLSelectElement>(`#warp-op-${i}`)!.value):Array.from({length:4},(_,i)=>data.get(`case-${i}`));
-      const result=game.submitWarp(selected,answer);if(!result.success){feedback(result.message,true);return;}render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
+      const result=game.submitWarp(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
   }
   function op(index:number){return `<select id="warp-op-${index}" aria-label="邏輯運算子 ${index+1}"><option value="">？</option><option value="and">and</option><option value="or">or</option></select>`;}
@@ -43,9 +48,9 @@ export function setupWarpUI(game:Game,callbacks:Callbacks){
     if(action==='check'){const ok=game.checkWarpActual();render();callbacks.changed();feedback(ok?'實際狀態檢查通過，WARP READY。':'WARP LOCKED：導航尚未就緒，請先完成導航準備。',!ok);}
     if(action==='launch'){
       if(!game.startWarp()){feedback('安全條件尚未完成，無法啟動躍遷。',true);return;}
-      render();callbacks.changed();stop();timer=setInterval(()=>{game.tickWarp();if(!game.warp.launching&&!game.warp.launched){stop();render();callbacks.changed();feedback('倒數已取消，請重新檢查實際狀態。',true);return;}if(game.warp.launched){stop();if(!game.repair('room-10')){feedback('啟動位置或安全狀態不符，請重新檢查。',true);return;}dialog.close();callbacks.completed();return;}render();callbacks.changed();},1000);
+      render();callbacks.changed();stop();timer=setInterval(()=>{game.tickWarp();if(!game.warp.launching&&!game.warp.launched){stop();render();callbacks.changed();feedback('倒數已取消，請重新檢查實際狀態。',true);return;}if(game.warp.launched){stop();if(!game.repair('room-10')){feedback('啟動位置或安全狀態不符，請重新檢查。',true);return;}handbook.close(false);dialog.close();callbacks.completed();return;}render();callbacks.changed();},1000);
     }
   });
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:WarpTaskId){const error=game.openWarp(id);if(error){callbacks.notify(error);return;}stop();selected=id;render();dialog.showModal();}};
+  return {dialog,open(id:WarpTaskId){const error=game.openWarp(id);if(error){callbacks.notify(error);return;}stop();selected=id;handbook.select(id);render();dialog.showModal();}};
 }

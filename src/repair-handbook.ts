@@ -423,9 +423,60 @@ export const radarHintTasks={
     ]
   }
 } satisfies Record<import('./radar').RadarTaskId,HintTask>;
-export type Handbook=typeof radarHandbook|typeof crewHandbook|typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook|typeof cargoHandbook;
+export const warpHandbook={
+  "levelId": 10,
+  "title": "主躍遷引擎",
+  "topic": "綜合邏輯專案",
+  "concepts": [
+    "and 表示兩邊條件都必須成立，or 表示至少一邊成立。",
+    "括號能清楚指定複合邏輯的計算順序。",
+    "非空字串轉成 bool 時通常是 True，不能把 \"OFF\" 當成 False。",
+    "最終系統必須通過正常與異常情境測試，不能只驗證一組資料。"
+  ],
+  "example": "has_key = True\ndoor_open = False\nadmin_ok = True\ncan_enter = has_key and (door_open or admin_ok)",
+  "recap": "探索者號返航成功！你學會了結合字典查詢、布林判斷與複合條件，並以不同情境驗證系統安全。"
+} as const;
+export const warpHintTasks={
+  "nav": {
+    "taskId": "10-1",
+    "title": "五大系統檢查",
+    "hints": [
+      "字典查詢必須使用實際存在的系統名稱。",
+      "比較 navigation 與資料庫裡的導航系統鍵名。",
+      "檢查 systems[\"navigation\"] 的鍵是否存在。"
+    ]
+  },
+  "manual": {
+    "taskId": "10-2",
+    "title": "人工授權判斷",
+    "hints": [
+      "字串 OFF 不會因為英文意思是否定，就自動變成 False。",
+      "若要判定授權是否開啟，應直接比較文字是否等於 ON。",
+      "檢查 bool(manual_status) 這行的判斷方式。"
+    ]
+  },
+  "logic": {
+    "taskId": "10-3",
+    "title": "躍遷啟動條件",
+    "hints": [
+      "先區分「一定要成立」與「可以二選一」的條件。",
+      "燃料、導航、主引擎必須同時正常；只有雷達與人工授權允許擇一。",
+      "檢查 and、or 的組合及括號位置，避免 engine_ready 繞過其他必要條件。"
+    ]
+  },
+  "verify": {
+    "taskId": "10-4",
+    "title": "最終安全測試",
+    "hints": [
+      "不要只看有多少 True，要檢查是否滿足全部必要規則。",
+      "先檢查燃料、導航和引擎，再檢查雷達或人工授權。",
+      "依照每組測試值，分別計算必要條件與替代條件的結果。"
+    ]
+  }
+} satisfies Record<import('./warp').WarpTaskId,HintTask>;
+export type Handbook=typeof warpHandbook|typeof radarHandbook|typeof crewHandbook|typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook|typeof cargoHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(radarHintTasks),...Object.values(crewHintTasks),...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks),...Object.values(cargoHintTasks)];
+const allHintTasks=[...Object.values(warpHintTasks),...Object.values(radarHintTasks),...Object.values(crewHintTasks),...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks),...Object.values(cargoHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

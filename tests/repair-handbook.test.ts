@@ -1,3 +1,4 @@
+import {warpTasks} from '../src/warp';
 import {crewTasks} from '../src/crew';
 import {radarTasks} from '../src/radar';
 import {cargoTasks} from '../src/cargo';
@@ -8,7 +9,7 @@ import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks,warpHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -236,4 +237,27 @@ test('第 9 關只有正式錯答計次，遠距、前置失敗與完成後不�
   game.player={...radarTasks[0].point};game.submitRadar('error','C');game.submitRadar('error','A');assert.equal(game.hints.get('9-1').attemptCount,1);
   game.player={...radarTasks[3].point};game.radarTask='verify';game.submitRadar('verify',{});assert.equal(game.hints.get('9-4').attemptCount,0);
   game.close();assert.equal(game.hints.get('9-1').attemptCount,1);game.reset();assert.equal(game.hints.get('9-1').attemptCount,0);
+});
+
+
+test('第十關四題逐層解鎖、診斷門檻、持久化與十關紀錄隔離',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(warpHintTasks).map(t=>t.taskId),['10-1','10-2','10-3','10-4']);
+  for(const task of Object.values(warpHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);assert.equal(state.reveal(task.taskId,1),true);assert.equal(state.reveal(task.taskId,2),true);
+    state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);assert.deepEqual(loaded.get('10-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  assert.equal(loaded.get('verify').attemptCount,0);for(let n=2;n<10;n++)assert.equal(loaded.get(`${n}-4`).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('10-1').revealedHintLevel,0);
+});
+test('第十關僅正式錯答計次，導航準備／實際檢查／啟動失敗不增加題目錯答',()=>{
+  const game=new Game();game.index=9;game.submitWarp('nav','navigation');assert.equal(game.hints.get('10-1').attemptCount,0);
+  game.player={...warpTasks[0].point};game.openWarp('nav');game.submitWarp('nav','navigation');assert.equal(game.hints.get('10-1').attemptCount,1);
+  game.prepareWarpNavigation();assert.equal(game.hints.get('10-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitWarp('nav','navigation');assert.equal(game.hints.get('10-1').attemptCount,1);
+  game.player={...warpTasks[0].point};game.submitWarp('nav','nav');game.submitWarp('nav','navigation');assert.equal(game.hints.get('10-1').attemptCount,1);
+  game.player={...warpTasks[3].point};game.warpTask='verify';game.submitWarp('verify',[]);assert.equal(game.hints.get('10-4').attemptCount,0);
+  game.checkWarpActual();game.startWarp();assert.equal(game.hints.get('10-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('10-1').attemptCount,1);game.reset();assert.equal(game.hints.get('10-1').attemptCount,0);
 });

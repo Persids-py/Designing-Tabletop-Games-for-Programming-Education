@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks,warpHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -234,7 +234,10 @@ export class Game {
   private warpControl(id:WarpTaskId){const task=warpTasks.find(t=>t.id===id)!;return this.index===9&&this.opened===levels[9].id&&this.warpTask===id&&Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)<=warpRadius;}
   submitWarp(id:WarpTaskId,answer:unknown):AlarmResult{
     if(!warpTasks.some(t=>t.id===id)||!this.warpControl(id))return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.warp.submit(id,answer);
+    const eligible=!this.warp.repaired[id]&&!this.warp.blocked(id);
+    const result=this.warp.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(warpHintTasks[id].taskId);
+    return result;
   }
   prepareWarpNavigation(){return this.warpControl('nav')&&this.warp.prepareNavigation();}
   checkWarpActual(){return this.warpControl('verify')&&this.warp.checkActual();}
