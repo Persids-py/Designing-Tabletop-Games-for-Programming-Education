@@ -1,8 +1,9 @@
+import {airlockTasks} from '../src/airlock';
 import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -83,4 +84,28 @@ test('第三關正式錯答計次，拒絕遠距、未開面板、前置未完�
   game.player={...lifeSupportTasks[0].point};game.submitLifeSupport('main','total = int(main_energy) + aux_energy');game.submitLifeSupport('main','bad');assert.equal(game.hints.get('3-1').attemptCount,1);
   game.player={...lifeSupportTasks[3].point};game.lifeSupportTask='verify';game.submitLifeSupport('verify','155');assert.equal(game.hints.get('3-4').attemptCount,0);
   game.reset();assert.equal(game.hints.get('3-1').attemptCount,0);
+});
+
+
+test('第四關四題分別保存與依序解鎖，兩次錯答才可診斷且不影響前三關',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(airlockHintTasks).map(t=>t.taskId),['4-1','4-2','4-3','4-4']);
+  for(const task of Object.values(airlockHintTasks)){
+    assert.equal(state.reveal(task.taskId,3),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.deepEqual(loaded.get('4-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  for(const id of ['verify','2-4','3-4'])assert.equal(loaded.get(id).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('4-1').revealedHintLevel,0);
+});
+
+test('第四關僅正式錯答計次，前置、距離、關閉、成功及重複提交均不誤計',()=>{
+  const game=new Game();game.index=3;game.submitAirlock('colon',';');assert.equal(game.hints.get('4-1').attemptCount,0);
+  game.player={...airlockTasks[0].point};game.openAirlock('colon');game.submitAirlock('colon',';');assert.equal(game.hints.get('4-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitAirlock('colon',';');assert.equal(game.hints.get('4-1').attemptCount,1);
+  game.player={...airlockTasks[0].point};game.submitAirlock('colon',':');game.submitAirlock('colon',';');assert.equal(game.hints.get('4-1').attemptCount,1);
+  game.player={...airlockTasks[3].point};game.airlockTask='verify';game.submitAirlock('verify',[]);assert.equal(game.hints.get('4-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('4-1').attemptCount,1);game.reset();assert.equal(game.hints.get('4-1').attemptCount,0);
 });

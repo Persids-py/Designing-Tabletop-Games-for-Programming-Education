@@ -1,15 +1,20 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {airlockHandbook,airlockHintTasks} from './repair-handbook';
 import {airlockTasks,pressureCases,type AirlockTaskId} from './airlock';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupAirlockUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='airlock-dialog';dialog.className='alarm-dialog airlock-dialog';dialog.setAttribute('aria-labelledby','airlock-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,airlockHandbook,airlockHintTasks);
   let selected:AirlockTaskId='colon',symbol='',indent=0;
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#airlock-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function render(){
     const task=airlockTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第四關 / 封鎖的氣閘艙</p><div class="alarm-stages" aria-label="氣閘設備修復進度">${airlockTasks.map((t,i)=>`<span class="${game.airlock.repaired[t.id]?'done':t.id===selected?'current':''}">${game.airlock.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>4-${airlockTasks.indexOf(task)+1} / 條件判斷</span><h2 id="airlock-title">${task.name}</h2></div><div id="airlock-body"></div><p id="airlock-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#airlock-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.airlock.repaired[selected]){
       body.innerHTML=selected==='verify'?`<div class="device-success">✓ 三組壓力測試通過</div><pre class="terminal-output">120 kPa → LOCK\n100 kPa → OPEN\n80 kPa → OPEN</pre><p class="alarm-note">高壓保持鎖定，正常壓力允許開門。安全邏輯已驗證。</p><button type="button" class="primary" data-action="unlock">解除封鎖 <span>→</span></button>`:`<div class="device-success">✓ 安全程式已修復</div><pre class="terminal-output">${selected==='colon'?'LOCK':selected==='indent'?'壓力過高':'OPEN'}</pre><p class="alarm-note">修復進度已保留，繼續檢查其他設備。</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;
     }
@@ -25,7 +30,7 @@ export function setupAirlockUI(game:Game,callbacks:Callbacks){
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);
       const answer=selected==='colon'?symbol:selected==='indent'?indent:selected==='branch'?data.get('open-code'):pressureCases.map((_,i)=>data.get(`case-${i}`));
-      const result=game.submitAirlock(selected,answer);if(!result.success){feedback(result.message,true);return;}
+      const result=game.submitAirlock(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
     const slot=dialog.querySelector('#colon-slot');slot?.addEventListener('dragover',event=>event.preventDefault());slot?.addEventListener('drop',event=>{event.preventDefault();const value=(event as DragEvent).dataTransfer?.getData('text/plain');if(value&&[':',';','=','!'].includes(value))setSymbol(value);});
@@ -37,10 +42,10 @@ export function setupAirlockUI(game:Game,callbacks:Callbacks){
   dialog.addEventListener('click',event=>{
     const button=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!button)return;
     if(button.dataset.action==='close'){close();return;}
-    if(button.dataset.action==='unlock'){if(!game.repair('room-4')){callbacks.notify('請先通過壓力測試，並在安全測試台附近解除封鎖。');return;}dialog.close();callbacks.completed();return;}
+    if(button.dataset.action==='unlock'){if(!game.repair('room-4')){callbacks.notify('請先通過壓力測試，並在安全測試台附近解除封鎖。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
     if(button.dataset.symbol)setSymbol(button.dataset.symbol);
     if(button.dataset.shift)setIndent(indent+Number(button.dataset.shift));
   });
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:AirlockTaskId){const error=game.openAirlock(id);if(error){callbacks.notify(error);return;}selected=id;symbol='';indent=0;render();dialog.showModal();}};
+  return {dialog,open(id:AirlockTaskId){const error=game.openAirlock(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);symbol='';indent=0;render();dialog.showModal();}};
 }

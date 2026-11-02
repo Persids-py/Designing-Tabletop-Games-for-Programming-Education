@@ -117,9 +117,60 @@ export const lifeSupportHintTasks={
     ]
   }
 } satisfies Record<import('./life-support').LifeSupportTaskId,HintTask>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook;
+export const airlockHandbook={
+  "levelId": 4,
+  "title": "氣閘艙",
+  "topic": "條件判斷",
+  "concepts": [
+    "if 用來判斷條件是否成立。",
+    "條件判斷後面需要冒號 :。",
+    "屬於 if 或 else 的程式行需要正確縮排。",
+    "大於 > 和大於等於 >= 的判斷範圍不同。"
+  ],
+  "example": "pressure = 60\nif pressure <= 70:\n    print(\"安全\")\nelse:\n    print(\"警告\")",
+  "recap": "氣閘艙已解除封鎖！你學會了使用 if／else 判斷條件，檢查冒號與縮排，並測試比較運算的邊界值。"
+} as const;
+export const airlockHintTasks={
+  "colon": {
+    "taskId": "4-1",
+    "title": "壓力判斷指令",
+    "hints": [
+      "Python 條件判斷的開頭有固定語法。",
+      "檢查 if 條件的結尾，是否有正確的符號。",
+      "檢查 if pressure > 100 這一行最後面。"
+    ]
+  },
+  "indent": {
+    "taskId": "4-2",
+    "title": "錯誤縮排",
+    "hints": [
+      "Python 利用縮排分辨哪些程式屬於同一個區塊。",
+      "如果 print() 只應在條件成立時執行，它必須位於 if 的內部。",
+      "檢查 print(\"壓力過高\") 前面的空格。"
+    ]
+  },
+  "branch": {
+    "taskId": "4-3",
+    "title": "正常壓力判斷",
+    "hints": [
+      "當 if 條件不成立時，可以讓程式執行另一個分支。",
+      "想想 else 區塊應該輸出哪一種艙門狀態。",
+      "檢查 else: 下方缺少的輸出指令。"
+    ]
+  },
+  "verify": {
+    "taskId": "4-4",
+    "title": "安全開門測試",
+    "hints": [
+      "請特別留意 100 kPa 這個邊界值。",
+      "條件是 pressure > 100，等於 100 時，這個條件是否成立？",
+      "比較三組壓力與 100 的大小關係。"
+    ]
+  }
+} satisfies Record<import('./airlock').AirlockTaskId,HintTask>;
+export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks)];
+const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

@@ -13,7 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
-import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks} from '../../src/repair-handbook';
+import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,airlockHandbook} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -314,8 +314,29 @@ async function solveAirlockRoom(page:Page){
     await page.locator(`[data-airlock-task="${task.id}"]`).click();await expect(page.locator('#airlock-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
     await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-4')).toBeVisible();
+    await expect(page.locator('#repair-handbook-4 .handbook-concepts li')).toHaveCount(4);
+    await expect(page.locator('#repair-handbook-4 .handbook-concepts pre')).toHaveText(airlockHandbook.example);
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-4 [role=tabpanel]>h4')).toHaveText(`${airlockHintTasks[task.id].taskId}｜${airlockHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-4 .handbook-hint p')).toHaveText(airlockHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.keyboard.press('Escape');
     if(task.id==='colon'){
       await page.getByRole('button',{name:'符號 ;',exact:true}).click();await page.getByRole('button',{name:'修復壓力判斷 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('SyntaxError');
+      await page.getByRole('button',{name:'修復壓力判斷 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-4 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-4 [data-hint-level="3"] p')).toHaveText(airlockHintTasks.colon.hints[2]);
+      await page.screenshot({path:'test-results/airlock-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-airlock-task="colon"]').click();
+      await expect(page.locator('#repair-handbook-4')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-4 .handbook-hint')).toHaveCount(3);await page.keyboard.press('Escape');
       await page.getByRole('button',{name:'符號 :',exact:true}).dragTo(page.locator('#colon-slot'));
       await expect(page.locator('#colon-slot')).toHaveText(':');await page.screenshot({path:'test-results/airlock-01-colon.png',fullPage:true});
       await page.getByRole('button',{name:'修復壓力判斷 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('LOCK');
@@ -329,7 +350,7 @@ async function solveAirlockRoom(page:Page){
       await page.getByRole('button',{name:'修復縮排 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('壓力過高');
     }else if(task.id==='branch'){
       await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');
-      await page.locator('[data-airlock-task="branch"]').click();await page.locator('#open-code').fill('print("LOCK")');
+      await page.locator('[data-airlock-task="branch"]').click();await page.keyboard.press('Escape');await page.locator('#open-code').fill('print("LOCK")');
       await page.getByRole('button',{name:'修復正常壓力 ↗'}).click();await expect(page.locator('#airlock-feedback')).toContainText('應輸出 OPEN');
       await page.locator('#open-code').fill('print("OPEN")');await page.getByRole('button',{name:'修復正常壓力 ↗'}).click();await expect(page.locator('#airlock-dialog .terminal-output')).toHaveText('OPEN');
       await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','ready');
@@ -346,6 +367,10 @@ async function solveAirlockRoom(page:Page){
       await page.getByRole('button',{name:'解除封鎖 →'}).click();await expect(page.locator('#airlock-dialog')).not.toBeVisible();
       await expect(page.locator('#count')).toHaveText('4 / 10');await expect(page.locator('#target-title')).toHaveText('引擎冷凝室');
       await expect(page.locator('#airlock-scene')).toHaveAttribute('data-stage','unlocked');await expect(page.locator('.pressure-monitor text')).toHaveText('壓力正常');
+      await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(16);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(3)).toHaveText(airlockHandbook.example);
+      await expect(page.locator('#count')).toHaveText('4 / 10');await page.keyboard.press('Escape');
       await page.clock.runFor(700);await page.screenshot({path:'test-results/airlock-05-unlocked.png',fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('3 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();

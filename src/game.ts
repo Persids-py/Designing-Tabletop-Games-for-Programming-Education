@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks,lifeSupportHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -144,7 +144,10 @@ export class Game {
   submitAirlock(id:AirlockTaskId,answer:unknown):AlarmResult{
     const task=airlockTasks.find(t=>t.id===id);
     if(this.index!==3||this.opened!==levels[3].id||this.airlockTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>airlockRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.airlock.submit(id,answer);
+    const eligible=!this.airlock.repaired[id]&&!this.airlock.blocked(id);
+    const result=this.airlock.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(airlockHintTasks[id].taskId);
+    return result;
   }
   openCooling(id:CoolingTaskId):string|null{
     const task=coolingTasks.find(t=>t.id===id);
