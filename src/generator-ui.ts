@@ -1,16 +1,21 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {generatorHandbook,generatorHintTasks} from './repair-handbook';
 import {generatorTasks,type GeneratorTaskId} from './generator';
 import type {Game} from './game';
 
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupGeneratorUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='generator-dialog';dialog.className='alarm-dialog generator-dialog';dialog.setAttribute('aria-labelledby','generator-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,generatorHandbook,generatorHintTasks);
   let selected:GeneratorTaskId='main',tokens:string[]=['220','=','target_voltage'],dragging:number|null=null;
   const subtitles={main:'2-1 / 賦值積木排列',backup:'2-2 / 變數名稱修正',display:'2-3 / 電壓程式修改',verify:'2-4 / 供電結果推理'};
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function render(){
     const task=generatorTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第二關 / 消失的電力</p><div class="alarm-stages" aria-label="發電機修復進度">${generatorTasks.map((t,i)=>`<span class="${game.generator.repaired[t.id]?'done':selected===t.id?'current':''}">${game.generator.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>${subtitles[selected]}</span><h2 id="generator-title">${task.name}</h2></div><div id="generator-body"></div><p id="generator-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#generator-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.generator.repaired[selected]){
       const output=selected==='main'?'target_voltage = 220\n主發電機：220V':selected==='backup'?'110\n備用發電機：110V':selected==='display'?'220':'220\n110';
       body.innerHTML=`<div class="device-success">✓ 設備已修復</div><pre class="terminal-output">${output}</pre><p class="alarm-note">設定已保留。返回船艙，繼續修復下一個設備。</p><button type="button" data-action="close" class="primary">返回船艙 <span>→</span></button>`;return;
@@ -35,10 +40,10 @@ export function setupGeneratorUI(game:Game,callbacks:Callbacks){
     event.preventDefault();const form=dialog.querySelector<HTMLFormElement>('form')!,data=new FormData(form);
     const answer=selected==='main'?[...tokens]:selected==='backup'?data.get('backup-name'):selected==='display'?data.get('voltage-code'):data.get('power-output');
     const result=game.submitGenerator(selected,answer);
-    if(!result.success){const feedback=dialog.querySelector<HTMLElement>('#generator-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
+    if(!result.success){handbook.refresh();const feedback=dialog.querySelector<HTMLElement>('#generator-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
     if(selected==='verify'){
       if(!game.repair('room-2')){callbacks.notify('請在供電測試台附近完成供電驗證。');return;}
-      dialog.close();callbacks.completed();return;
+      handbook.close(false);dialog.close();callbacks.completed();return;
     }
     render();callbacks.changed();dialog.querySelector('#generator-feedback')!.textContent=result.message;
     dialog.querySelector<HTMLElement>('.primary[data-action="close"]')?.focus();
@@ -53,5 +58,5 @@ export function setupGeneratorUI(game:Game,callbacks:Callbacks){
   dialog.addEventListener('drop',event=>{event.preventDefault();const tile=(event.target as HTMLElement).closest<HTMLElement>('[data-tile]');if(tile&&dragging!==null)reorder(dragging,Number(tile.dataset.tile));dragging=null;});
   dialog.addEventListener('dragend',()=>{dragging=null;});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:GeneratorTaskId){const error=game.openGenerator(id);if(error){callbacks.notify(error);return;}selected=id;tokens=['220','=','target_voltage'];render();dialog.showModal();}};
+  return {dialog,open(id:GeneratorTaskId){const error=game.openGenerator(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);tokens=['220','=','target_voltage'];render();dialog.showModal();}};
 }

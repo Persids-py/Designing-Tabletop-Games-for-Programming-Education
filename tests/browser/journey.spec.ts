@@ -13,7 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
-import {hintStorageKey,alarmHintTasks} from '../../src/repair-handbook';
+import {hintStorageKey,alarmHintTasks,generatorHintTasks} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -96,7 +96,7 @@ async function solveAlarmRoom(page:Page){
     await expect(page.locator('#repair-handbook')).toBeVisible();await expect(page.getByRole('button',{name:'▤ 維修手冊',exact:true})).toHaveAttribute('aria-expanded','true');await page.getByRole('button',{name:'收合 AI 維修手冊',exact:true}).click();await expect(page.locator('#repair-handbook')).not.toBeVisible();
     if(task.id!=='computer'){
       await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();await page.getByRole('tab',{name:'目前任務提示'}).click();
-      await expect(page.locator('#handbook-tabpanel>h4')).toHaveText(`${alarmHintTasks[task.id].taskId}｜${alarmHintTasks[task.id].title}`);await expect(page.locator('.handbook-hint')).toHaveCount(0);
+      await expect(page.locator('#handbook-1-tabpanel>h4')).toHaveText(`${alarmHintTasks[task.id].taskId}｜${alarmHintTasks[task.id].title}`);await expect(page.locator('.handbook-hint')).toHaveCount(0);
       await page.getByRole('button',{name:'查看提示 1',exact:true}).click();await expect(page.locator('.handbook-hint p')).toHaveText(alarmHintTasks[task.id].hints[0]);await page.keyboard.press('Escape');await expect(page.locator('#alarm-dialog')).toBeVisible();
     }
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(200);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
@@ -177,9 +177,30 @@ async function solveGeneratorRoom(page:Page){
     await page.locator(`[data-generator-task="${task.id}"]`).click();await expect(page.locator('#generator-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
     await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-2')).toBeVisible();
+    await expect(page.locator('#repair-handbook-2 .handbook-concepts li')).toHaveCount(4);
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-2 [role=tabpanel]>h4')).toHaveText(`${generatorHintTasks[task.id].taskId}｜${generatorHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-2 .handbook-hint p')).toHaveText(generatorHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.getByRole('button',{name:'收合 AI 維修手冊',exact:true}).click();
     if(task.id==='main'){
       await page.screenshot({path:'test-results/generator-01-assignment.png',fullPage:true});
       await page.getByRole('button',{name:'設定主電壓 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('賦值方向');
+      await page.getByRole('button',{name:'設定主電壓 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-2 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-2 [data-hint-level="3"] p')).toHaveText(generatorHintTasks.main.hints[2]);
+      await page.screenshot({path:'test-results/generator-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-generator-task="main"]').click();
+      await expect(page.locator('#repair-handbook-2')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-2 .handbook-hint')).toHaveCount(3);
+      await page.keyboard.press('Escape');
       await expect(page.locator('#count')).toHaveText('1 / 10');
       await page.locator('#assignment-tiles li').nth(2).dragTo(page.locator('#assignment-tiles li').nth(0));
       await page.getByRole('button',{name:'左移 =',exact:true}).click();
@@ -189,7 +210,7 @@ async function solveGeneratorRoom(page:Page){
     }else if(task.id==='backup'){
       await page.getByRole('button',{name:'修復備用變數 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('NameError');
       await page.keyboard.press('Escape');await expect(page.locator('#generator-dialog')).not.toBeVisible();await expect(page.locator('#target-status')).toContainText('1 / 4');
-      await page.locator('[data-generator-task="backup"]').click();await page.locator('#backup-name').fill('backup_voltage');
+      await page.locator('[data-generator-task="backup"]').click();await page.getByRole('button',{name:'收合 AI 維修手冊',exact:true}).click();await page.locator('#backup-name').fill('backup_voltage');
       await page.getByRole('button',{name:'修復備用變數 ↗'}).click();await expect(page.locator('#generator-scene .backup-meter text')).toHaveText('110V');
     }else if(task.id==='display'){
       await page.getByRole('button',{name:'更新電壓顯示 ↗'}).click();await expect(page.locator('#generator-feedback')).toContainText('引號內是文字');
@@ -202,6 +223,10 @@ async function solveGeneratorRoom(page:Page){
       await page.getByRole('button',{name:'執行供電測試 ↗'}).click();await expect(page.locator('#generator-dialog')).not.toBeVisible();
       await expect(page.locator('#count')).toHaveText('2 / 10');await expect(page.locator('#generator-scene')).toHaveAttribute('data-stage','powered');
       await expect(page.locator('#target-title')).toHaveText('維生系統室');await page.clock.runFor(500);
+      await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(8);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(1)).toHaveText('voltage = 80\nvoltage = 90\nprint(voltage)');
+      await expect(page.locator('#count')).toHaveText('2 / 10');await page.keyboard.press('Escape');
       await page.screenshot({path:'test-results/generator-05-powered.png',fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('1 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();

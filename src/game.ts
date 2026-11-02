@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState} from './repair-handbook';
+import {RepairHintState,generatorHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -114,7 +114,10 @@ export class Game {
   submitGenerator(id:GeneratorTaskId,answer:unknown):AlarmResult{
     const task=generatorTasks.find(t=>t.id===id);
     if(this.index!==1||this.opened!==levels[1].id||this.generatorTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>generatorRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.generator.submit(id,answer);
+    const eligible=!this.generator.repaired[id]&&!this.generator.blocked(id);
+    const result=this.generator.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(generatorHintTasks[id].taskId);
+    return result;
   }
   openLifeSupport(id:LifeSupportTaskId):string|null{
     const task=lifeSupportTasks.find(t=>t.id===id);

@@ -1,24 +1,23 @@
-import type {AlarmTaskId} from './alarm';
-import {alarmHandbook,alarmHintTasks,type RepairHintState} from './repair-handbook';
+import {alarmHandbook,alarmHintTasks,generatorHandbook,type Handbook,type HintTask,type RepairHintState} from './repair-handbook';
 
-export function conceptContent(recap=false){
+export function conceptContent(recap=false,handbook:Handbook=alarmHandbook){
   const content=document.createElement('div');content.className='handbook-concepts';
-  const topic=document.createElement('p');topic.className='handbook-topic';topic.textContent=`Python · ${alarmHandbook.topic}`;content.append(topic);
-  if(recap){const p=document.createElement('p');p.className='handbook-recap';p.textContent=alarmHandbook.recap;content.append(p);}
-  const list=document.createElement('ol');for(const line of alarmHandbook.concepts){const li=document.createElement('li');li.textContent=line;list.append(li);}content.append(list);
+  const topic=document.createElement('p');topic.className='handbook-topic';topic.textContent=`Python · ${handbook.topic}`;content.append(topic);
+  if(recap){const p=document.createElement('p');p.className='handbook-recap';p.textContent=handbook.recap;content.append(p);}
+  const list=document.createElement('ol');for(const line of handbook.concepts){const li=document.createElement('li');li.textContent=line;list.append(li);}content.append(list);
   const caption=document.createElement('p');caption.textContent='語法小範例（不同於正式題目）';content.append(caption);
-  const example=document.createElement('pre');example.textContent=alarmHandbook.example;content.append(example);return content;
+  const example=document.createElement('pre');example.textContent=handbook.example;content.append(example);return content;
 }
-export function setupRepairHandbook(dialog:HTMLDialogElement,state:RepairHintState){
-  const panel=document.createElement('aside');panel.className='repair-handbook';panel.id='repair-handbook';panel.setAttribute('aria-label','AI 維修手冊');panel.hidden=true;
+export function setupRepairHandbook(dialog:HTMLDialogElement,state:RepairHintState,handbook:Handbook=alarmHandbook,tasks:Record<string,HintTask>=alarmHintTasks){
+  const panel=document.createElement('aside');panel.className='repair-handbook';panel.id=handbook.levelId===1?'repair-handbook':`repair-handbook-${handbook.levelId}`;panel.setAttribute('aria-label','AI 維修手冊');panel.hidden=true;
   const trigger=document.createElement('button');trigger.type='button';trigger.className='handbook-trigger';trigger.textContent='▤ 維修手冊';trigger.setAttribute('aria-controls',panel.id);trigger.setAttribute('aria-expanded','false');
-  let selected:AlarmTaskId='computer',opened=false,tab:'concepts'|'hints'='concepts';
+  let selected=Object.keys(tasks)[0],opened=false,tab:'concepts'|'hints'='concepts';
   function close(focus=true){opened=false;panel.hidden=true;dialog.classList.remove('handbook-open');trigger.setAttribute('aria-expanded','false');if(focus)trigger.focus({preventScroll:true});}
   function render(){
-    const task=alarmHintTasks[selected],progress=state.get(selected);
-    panel.innerHTML=`<header><div><span>AI 維修手冊</span><h3>第一關 · 警報燈光室</h3></div><button type="button" data-book-action="close" aria-label="收合 AI 維修手冊">×</button></header><div class="handbook-tabs" role="tablist" aria-label="手冊內容"><button id="handbook-concepts-tab" type="button" role="tab" aria-controls="handbook-tabpanel" aria-selected="${tab==='concepts'}" data-book-tab="concepts">觀念重點</button><button id="handbook-hints-tab" type="button" role="tab" aria-controls="handbook-tabpanel" aria-selected="${tab==='hints'}" data-book-tab="hints">目前任務提示</button></div><div id="handbook-tabpanel" role="tabpanel" aria-labelledby="handbook-${tab}-tab"></div>`;
-    const body=panel.querySelector('#handbook-tabpanel')!;
-    if(tab==='concepts')body.append(conceptContent());
+    const task=tasks[selected],progress=state.get(task.taskId);
+    panel.innerHTML=`<header><div><span>AI 維修手冊</span><h3>第${handbook.levelId}關 · ${handbook.title}</h3></div><button type="button" data-book-action="close" aria-label="收合 AI 維修手冊">×</button></header><div class="handbook-tabs" role="tablist" aria-label="手冊內容"><button id="handbook-${handbook.levelId}-concepts-tab" type="button" role="tab" aria-controls="handbook-${handbook.levelId}-tabpanel" aria-selected="${tab==='concepts'}" data-book-tab="concepts">觀念重點</button><button id="handbook-${handbook.levelId}-hints-tab" type="button" role="tab" aria-controls="handbook-${handbook.levelId}-tabpanel" aria-selected="${tab==='hints'}" data-book-tab="hints">目前任務提示</button></div><div id="handbook-${handbook.levelId}-tabpanel" role="tabpanel" aria-labelledby="handbook-${handbook.levelId}-${tab}-tab"></div>`;
+    const body=panel.querySelector('[role=tabpanel]')!;
+    if(tab==='concepts')body.append(conceptContent(false,handbook));
     else{
       const title=document.createElement('h4');title.textContent=`${task.taskId}｜${task.title}`;body.append(title);
       const status=document.createElement('p');status.className='handbook-status';status.textContent=`本題正式答錯 ${progress.attemptCount} 次 · 診斷提示於答錯兩次後開放`;body.append(status);
@@ -38,14 +37,14 @@ export function setupRepairHandbook(dialog:HTMLDialogElement,state:RepairHintSta
     const button=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!button)return;
     if(button.dataset.bookAction==='close'){close();return;}
     if(button.dataset.bookTab){tab=button.dataset.bookTab as typeof tab;render();panel.querySelector<HTMLButtonElement>('[aria-selected=true]')?.focus({preventScroll:true});}
-    if(button.dataset.reveal&&state.reveal(selected,Number(button.dataset.reveal))){render();panel.querySelector<HTMLElement>('.handbook-hint:last-of-type')?.scrollIntoView({block:'nearest'});}
+    if(button.dataset.reveal&&state.reveal(tasks[selected].taskId,Number(button.dataset.reveal))){render();panel.querySelector<HTMLElement>('.handbook-hint:last-of-type')?.scrollIntoView({block:'nearest'});}
   });
   // 先於題目自己的 cancel handler 註冊：第一次 Esc 只收合手冊。
   dialog.addEventListener('cancel',event=>{if(opened){event.preventDefault();event.stopImmediatePropagation();close();}});
   dialog.addEventListener('pointerdown',event=>{if(opened&&!panel.contains(event.target as Node)&&!trigger.contains(event.target as Node))close(false);});
   return {
-    mount(id:AlarmTaskId){selected=id;dialog.querySelector('.alarm-heading')!.append(trigger);dialog.append(panel);if(opened)render();},
-    select(id:AlarmTaskId){selected=id;tab='concepts';opened=true;panel.hidden=false;dialog.classList.add('handbook-open');trigger.setAttribute('aria-expanded','true');},
+    mount(id:string){selected=id;dialog.querySelector('.alarm-heading')!.append(trigger);dialog.append(panel);if(opened)render();},
+    select(id:string){selected=id;tab='concepts';opened=true;panel.hidden=false;dialog.classList.add('handbook-open');trigger.setAttribute('aria-expanded','true');},
     refresh(){if(opened)render();},close
   };
 }
@@ -57,5 +56,16 @@ export function setupHandbookReview(){
   const button=document.createElement('button');button.type='button';button.className='handbook-review-trigger';button.id='handbook-review-trigger';button.textContent='▤ 第一關觀念回顧';button.hidden=true;document.querySelector('.route-card')!.append(button);
   button.onclick=()=>{if(!document.querySelector('dialog[open]'))dialog.showModal();};
   const close=()=>{dialog.close();button.focus({preventScroll:true});};dialog.querySelector('button')!.onclick=close;dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {button,dialog};
+  let reviewedCount=-1;
+  return {button,dialog,update(completed:number){
+    if(completed===reviewedCount)return;reviewedCount=completed;
+    button.hidden=completed<1;
+    button.textContent=completed>=2?'▤ 已修復關卡觀念回顧':'▤ 第一關觀念回顧';
+    const title=dialog.querySelector('h2')!;title.textContent=completed>=2?'已修復關卡 · 觀念回顧':'第一關 · 觀念回顧';
+    dialog.querySelectorAll('.handbook-concepts,.review-level-title').forEach(node=>node.remove());
+    for(const book of [alarmHandbook,generatorHandbook]){
+      if(completed<book.levelId)continue;
+      const heading=document.createElement('h3');heading.className='review-level-title';heading.textContent=`第${book.levelId}關 · ${book.title}`;dialog.append(heading,conceptContent(true,book));
+    }
+  }};
 }

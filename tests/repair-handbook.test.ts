@@ -1,6 +1,7 @@
+import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -26,4 +27,32 @@ test('只有正式錯誤答案計次：遠距、未開面板、已修好、前�
   game.player={...alarmTasks[0].point};game.openAlarm('computer');game.submitAlarm('computer','B');assert.equal(game.hints.get('computer').attemptCount,1);game.close();assert.equal(game.hints.get('computer').attemptCount,1);
   game.openAlarm('computer');game.submitAlarm('computer','A');game.submitAlarm('computer','B');assert.equal(game.hints.get('computer').attemptCount,1);
   game.player={...alarmTasks[3].point};game.submitAlarm('verify',[]);assert.equal(game.hints.get('verify').attemptCount,0);game.reset();assert.equal(game.hints.get('computer').attemptCount,0);
+});
+
+
+test('第二關四題隔離、診斷門檻及跨載入保存，不與第一關 verify 共用',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(generatorHintTasks).map(t=>t.taskId),['2-1','2-2','2-3','2-4']);
+  for(const task of Object.values(generatorHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);
+    assert.equal(state.reveal(task.taskId,1),true);assert.equal(state.reveal(task.taskId,2),true);
+    state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),false);
+    state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.equal(loaded.get('2-4').revealedHintLevel,3);assert.equal(loaded.get('verify').revealedHintLevel,0);
+  assert.equal(loaded.get('2-1').attemptCount,2);assert.equal(loaded.get('computer').attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('2-4').attemptCount,0);
+});
+
+test('第二關僅有效正式錯答計次，前置、遠距、未開面板與已完成不計次',()=>{
+  const game=new Game();game.index=1;
+  game.submitGenerator('main',[]);assert.equal(game.hints.get('2-1').attemptCount,0);
+  game.player={...generatorTasks[0].point};game.openGenerator('main');
+  game.submitGenerator('main',[]);assert.equal(game.hints.get('2-1').attemptCount,1);
+  game.submitGenerator('main',['target_voltage','=','220']);game.submitGenerator('main',[]);
+  assert.equal(game.hints.get('2-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitGenerator('main',[]);assert.equal(game.hints.get('2-1').attemptCount,1);
+  game.player={...generatorTasks[3].point};game.generatorTask='verify';game.submitGenerator('verify','A');
+  assert.equal(game.hints.get('2-4').attemptCount,0);game.reset();assert.equal(game.hints.get('2-1').attemptCount,0);
 });

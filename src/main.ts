@@ -135,7 +135,7 @@ function openRepair(id:string) {
   repairDialog.showModal();
 }
 function render() {
-  handbookReview.button.hidden=game.index<1;
+  handbookReview.update(game.index);
   drawAlarmScene(game.alarm);
   drawGeneratorScene(game.generator);
   drawLifeSupportScene(game.lifeSupport);
