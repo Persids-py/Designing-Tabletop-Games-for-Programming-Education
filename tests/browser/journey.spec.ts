@@ -13,7 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
-import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,airlockHandbook,coolingHintTasks,coolingHandbook} from '../../src/repair-handbook';
+import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,airlockHandbook,coolingHintTasks,coolingHandbook,boosterHintTasks,boosterHandbook} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -442,8 +442,29 @@ async function solveBoosterRoom(page:Page){
     for(const p of route(await position(page),task.point,boosterRadius))await walkTo(page,p);
     await page.locator(`[data-booster-task="${task.id}"]`).click();await expect(page.locator('#booster-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-6')).toBeVisible();
+    await expect(page.locator('#repair-handbook-6 .handbook-concepts li')).toHaveCount(4);
+    await expect(page.locator('#repair-handbook-6 .handbook-concepts pre')).toHaveText(boosterHandbook.example);
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-6 [role=tabpanel]>h4')).toHaveText(`${boosterHintTasks[task.id].taskId}｜${boosterHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-6 .handbook-hint p')).toHaveText(boosterHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.keyboard.press('Escape');
     if(task.id==='declaration'){
       await page.getByRole('button',{name:'符號 ;',exact:true}).click();await page.getByRole('button',{name:'修復函式宣告 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('SyntaxError');
+      await page.getByRole('button',{name:'修復函式宣告 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-6 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-6 [data-hint-level="3"] p')).toHaveText(boosterHintTasks.declaration.hints[2]);
+      await page.screenshot({path:'test-results/booster-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-booster-task="declaration"]').click();
+      await expect(page.locator('#repair-handbook-6')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-6 .handbook-hint')).toHaveCount(3);await page.keyboard.press('Escape');
       await page.getByRole('button',{name:'符號 :',exact:true}).dragTo(page.locator('#def-slot'));await expect(page.locator('#def-slot')).toHaveText(':');await page.screenshot({path:'test-results/booster-01-declaration.png',fullPage:true});
       await page.getByRole('button',{name:'修復函式宣告 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toHaveText('函式宣告成立');
     }else if(task.id==='formula'){
@@ -451,7 +472,7 @@ async function solveBoosterRoom(page:Page){
       await page.getByRole('button',{name:'運算子 *',exact:true}).click();await expect(page.locator('#booster-operator')).toHaveText('*');await page.getByRole('button',{name:'修復推力公式 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toContainText('60');
     }else if(task.id==='return'){
       await page.getByRole('button',{name:'修復推力回傳 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('None');
-      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-booster-task="return"]').click();
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-booster-task="return"]').click();await page.keyboard.press('Escape');
       await page.locator('#return-code').fill('return power');await page.screenshot({path:'test-results/booster-03-return.png',fullPage:true});await page.getByRole('button',{name:'修復推力回傳 ↗'}).click();await expect(page.locator('#booster-dialog .terminal-output')).toHaveText('thrust = 60');
     }else{
       await page.locator('#thrust-output').fill('60');await page.getByRole('button',{name:'測試低速模式 ↗'}).click();await expect(page.locator('#booster-feedback')).toContainText('速度為 0');await expect(page.locator('#booster-scene .online')).toHaveCount(0);
@@ -461,7 +482,11 @@ async function solveBoosterRoom(page:Page){
       await page.locator('#thrust-output').fill('30');await page.getByRole('button',{name:'測試中速模式 ↗'}).click();await expect(page.locator('#booster-scene .online')).toHaveCount(2);await expect(page.locator('#count')).toHaveText('5 / 10');
       await page.locator('#thrust-output').fill('60');await page.screenshot({path:'test-results/booster-04-verify.png',fullPage:true});await page.getByRole('button',{name:'測試高速模式 ↗'}).click();
       await expect(page.locator('#booster-dialog')).not.toBeVisible();await expect(page.locator('#count')).toHaveText('6 / 10');await expect(page.locator('#target-title')).toHaveText('資材庫存室');
-      await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','powered');await expect(page.locator('#booster-scene .online')).toHaveCount(3);await page.clock.runFor(700);await page.screenshot({path:'test-results/booster-05-powered.png',fullPage:true});continue;
+      await expect(page.locator('#booster-scene')).toHaveAttribute('data-stage','powered');await expect(page.locator('#booster-scene .online')).toHaveCount(3);await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(24);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(5)).toHaveText(boosterHandbook.example);
+      await expect(page.locator('#count')).toHaveText('6 / 10');await page.keyboard.press('Escape');
+      await page.clock.runFor(700);await page.screenshot({path:'test-results/booster-05-powered.png',fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('5 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
   }

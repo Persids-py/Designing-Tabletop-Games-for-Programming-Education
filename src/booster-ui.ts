@@ -1,15 +1,20 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {boosterHandbook,boosterHintTasks} from './repair-handbook';
 import {boosterTasks,boosterSpeeds,type BoosterTaskId} from './booster';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupBoosterUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='booster-dialog';dialog.className='alarm-dialog booster-dialog';dialog.setAttribute('aria-labelledby','booster-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,boosterHandbook,boosterHintTasks);
   let selected:BoosterTaskId='declaration',symbol='',operator='+';
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#booster-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function render(){
     const task=boosterTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第六關 / 失去動力的副推進器</p><div class="alarm-stages" aria-label="推進器修復進度">${boosterTasks.map((t,i)=>`<span class="${game.booster.repaired[t.id]?'done':t.id===selected?'current':''}">${game.booster.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>6-${boosterTasks.indexOf(task)+1} / 函式設計與回傳</span><h2 id="booster-title">${task.name}</h2></div><div id="booster-body"></div><p id="booster-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#booster-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.booster.repaired[selected]){
       body.innerHTML=`<div class="device-success">✓ 推進器設備已修復</div><pre class="terminal-output">${selected==='declaration'?'函式宣告成立':selected==='formula'?'booster_power(20) → 60':'thrust = 60'}</pre><p class="alarm-note">修復進度已保留，繼續檢查其他設備。</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;
     }
@@ -25,8 +30,8 @@ export function setupBoosterUI(game:Game,callbacks:Callbacks){
     }
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);const answer=selected==='declaration'?symbol:selected==='formula'?operator:selected==='return'?data.get('return-code'):data.get('thrust-output');
-      const result=game.submitBooster(selected,answer);if(!result.success){feedback(result.message,true);return;}
-      if(selected==='verify'&&game.booster.completed){if(!game.repair('room-6')){callbacks.notify('請在三段式推力測試台附近完成驗證。');return;}dialog.close();callbacks.completed();return;}
+      const result=game.submitBooster(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}
+      if(selected==='verify'&&game.booster.completed){if(!game.repair('room-6')){callbacks.notify('請在三段式推力測試台附近完成驗證。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLElement>('#thrust-output,.primary')?.focus();
     });
     const slot=dialog.querySelector('#def-slot');slot?.addEventListener('dragover',event=>event.preventDefault());slot?.addEventListener('drop',event=>{event.preventDefault();const value=(event as DragEvent).dataTransfer?.getData('text/plain');if(value&&[':',';','=','!'].includes(value))setSymbol(value);});
@@ -35,5 +40,5 @@ export function setupBoosterUI(game:Game,callbacks:Callbacks){
   dialog.addEventListener('dragstart',event=>{const value=(event.target as HTMLElement).dataset.symbol;if(value)event.dataTransfer?.setData('text/plain',value);});
   dialog.addEventListener('click',event=>{const button=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!button)return;if(button.dataset.action==='close'){close();return;}if(button.dataset.symbol)setSymbol(button.dataset.symbol);if(button.dataset.operator){operator=button.dataset.operator;dialog.querySelector('#booster-operator')!.textContent=operator;for(const card of dialog.querySelectorAll<HTMLElement>('[data-operator]'))card.setAttribute('aria-pressed',String(card.dataset.operator===operator));}});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:BoosterTaskId){const error=game.openBooster(id);if(error){callbacks.notify(error);return;}selected=id;symbol='';operator='+';render();dialog.showModal();}};
+  return {dialog,open(id:BoosterTaskId){const error=game.openBooster(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);symbol='';operator='+';render();dialog.showModal();}};
 }

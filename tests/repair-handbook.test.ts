@@ -1,10 +1,11 @@
+import {boosterTasks} from '../src/booster';
 import {coolingTasks} from '../src/cooling';
 import {airlockTasks} from '../src/airlock';
 import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -133,4 +134,33 @@ test('第五關只計有效正式錯答，拒絕前置、遠距、未開面板�
   game.player={...coolingTasks[0].point};game.submitCooling('cause','A');game.submitCooling('cause','B');assert.equal(game.hints.get('5-1').attemptCount,1);
   game.player={...coolingTasks[3].point};game.coolingTask='verify';game.submitCooling('verify',[]);assert.equal(game.hints.get('5-4').attemptCount,0);
   game.close();assert.equal(game.hints.get('5-1').attemptCount,1);game.reset();assert.equal(game.hints.get('5-1').attemptCount,0);
+});
+
+
+test('第六關四題三層提示、兩次門檻與持久化，不影響前五關',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(boosterHintTasks).map(t=>t.taskId),['6-1','6-2','6-3','6-4']);
+  for(const task of Object.values(boosterHintTasks)){
+    assert.equal(state.reveal(task.taskId,3),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.deepEqual(loaded.get('6-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  for(const id of ['verify','2-4','3-4','4-4','5-4'])assert.equal(loaded.get(id).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('6-1').revealedHintLevel,0);
+});
+
+test('第六關有效錯答才計次，三段測試的部分成功、重開及全部成功不誤計',()=>{
+  const game=new Game();game.index=5;game.submitBooster('declaration',';');assert.equal(game.hints.get('6-1').attemptCount,0);
+  game.player={...boosterTasks[0].point};game.openBooster('declaration');game.submitBooster('declaration',';');assert.equal(game.hints.get('6-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitBooster('declaration',';');assert.equal(game.hints.get('6-1').attemptCount,1);
+  game.player={...boosterTasks[0].point};game.submitBooster('declaration',':');game.submitBooster('declaration',';');assert.equal(game.hints.get('6-1').attemptCount,1);
+  game.player={...boosterTasks[3].point};game.boosterTask='verify';game.submitBooster('verify','60');assert.equal(game.hints.get('6-4').attemptCount,0);
+  game.booster.repaired.formula=true;game.booster.repaired.return=true;
+  game.submitBooster('verify','60');assert.equal(game.hints.get('6-4').attemptCount,1);
+  game.submitBooster('verify','0');assert.equal(game.hints.get('6-4').attemptCount,1);assert.deepEqual(game.booster.testOutputs,[0]);
+  game.close();game.openBooster('verify');game.submitBooster('verify','0');assert.equal(game.hints.get('6-4').attemptCount,2);
+  game.submitBooster('verify','30');game.submitBooster('verify','60');game.submitBooster('verify','0');assert.equal(game.hints.get('6-4').attemptCount,2);assert.deepEqual(game.booster.testOutputs,[0,30,60]);
+  game.reset();assert.equal(game.hints.get('6-4').attemptCount,0);
 });

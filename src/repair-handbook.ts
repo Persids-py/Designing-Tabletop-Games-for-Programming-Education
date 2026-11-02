@@ -219,9 +219,60 @@ export const coolingHintTasks={
     ]
   }
 } satisfies Record<import('./cooling').CoolingTaskId,HintTask>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook;
+export const boosterHandbook={
+  "levelId": 6,
+  "title": "副推進器室",
+  "topic": "函式設計",
+  "concepts": [
+    "def 可以定義可重複使用的函式。",
+    "函式名稱後可接收參數，例如 def double(n):。",
+    "return 會把計算結果傳回呼叫函式的位置。",
+    "print() 只會顯示結果，不等於回傳結果。"
+  ],
+  "example": "def square(n):\n    return n * n\nprint(square(4))",
+  "recap": "副推進器已恢復動力！你學會了定義函式、傳入參數，並使用 return 將計算結果交回呼叫處。"
+} as const;
+export const boosterHintTasks={
+  "declaration": {
+    "taskId": "6-1",
+    "title": "函式宣告",
+    "hints": [
+      "函式定義與條件判斷一樣，有固定的起始語法。",
+      "檢查 def 函式名稱(參數) 的最後是否缺少符號。",
+      "檢查 def booster_power(speed) 這一行結尾。"
+    ]
+  },
+  "formula": {
+    "taskId": "6-2",
+    "title": "推力公式",
+    "hints": [
+      "請確認程式中的運算方式是否符合推力規則。",
+      "規則要求速度乘以 3，而不是將速度加上 3。",
+      "檢查 power = speed + 3 的運算子。"
+    ]
+  },
+  "return": {
+    "taskId": "6-3",
+    "title": "推力回傳",
+    "hints": [
+      "在函式中顯示數字，不代表外部變數可以取得它。",
+      "若要把 power 的值交給 thrust，應使用回傳指令。",
+      "檢查函式最後使用 print() 還是 return。"
+    ]
+  },
+  "verify": {
+    "taskId": "6-4",
+    "title": "三段式測試",
+    "hints": [
+      "函式每被呼叫一次，都會使用新的輸入參數重新計算。",
+      "將 0、10、20 依序代入相同的推力公式。",
+      "檢查三次 booster_power() 的輸入值與乘數。"
+    ]
+  }
+} satisfies Record<import('./booster').BoosterTaskId,HintTask>;
+export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks)];
+const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}
