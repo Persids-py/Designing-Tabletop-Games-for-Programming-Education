@@ -13,7 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
-import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,airlockHandbook,coolingHintTasks,coolingHandbook,boosterHintTasks,boosterHandbook,cargoHintTasks,cargoHandbook} from '../../src/repair-handbook';
+import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,airlockHandbook,coolingHintTasks,coolingHandbook,boosterHintTasks,boosterHandbook,cargoHintTasks,cargoHandbook,crewHintTasks,crewHandbook,radarHintTasks,radarHandbook} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -557,14 +557,37 @@ async function solveCrewRoom(page:Page){
     for(const p of route(await position(page),task.point,crewRadius))await walkTo(page,p);
     await page.locator(`[data-crew-task="${task.id}"]`).click();await expect(page.locator('#crew-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-8')).toBeVisible();
+    await expect(page.locator('#repair-handbook-8 .handbook-concepts li')).toHaveCount(4);
+    await expect(page.locator('#repair-handbook-8 .handbook-concepts pre')).toHaveText(crewHandbook.example);
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-8 [role=tabpanel]>h4')).toHaveText(`${crewHintTasks[task.id].taskId}｜${crewHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-8 .handbook-hint p')).toHaveText(crewHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.keyboard.press('Escape');
     if(task.id==='lookup'){
       await page.locator('[data-role="engineer"]').click();await expect(page.locator('#crew-selection')).toContainText('engineer');await page.getByRole('button',{name:'修復姓名查詢 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('KeyError');
+      await page.getByRole('button',{name:'修復姓名查詢 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-8 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-8 [data-hint-level="3"] p')).toHaveText(crewHintTasks.lookup.hints[2]);
+      await page.screenshot({path:'test-results/crew-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-crew-task="lookup"]').click();
+      await expect(page.locator('#repair-handbook-8')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-8 .handbook-hint')).toHaveCount(3);await page.keyboard.press('Escape');
+      await page.locator('[data-role="engineer"]').click();
+
       await page.locator('#crew-key').fill('engineer');await page.screenshot({path:'test-results/crew-01-lookup.png',fullPage:true});await page.getByRole('button',{name:'修復姓名查詢 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('Chen');await expect(page.locator('#crew-scene .holo-name')).toHaveText('Chen');
     }else if(task.id==='level'){
       await page.locator('input[name="crew-field"][value="name"]').check();await page.getByRole('button',{name:'讀取授權等級 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('level 欄位');
       await page.locator('input[name="crew-field"][value="level"]').check();await page.getByRole('button',{name:'讀取授權等級 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('2');await expect(page.locator('#crew-scene .holo-level')).toHaveText('LEVEL 2');
     }else if(task.id==='safe'){
-      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-crew-task="safe"]').click();
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-crew-task="safe"]').click();await page.keyboard.press('Escape');
       await page.locator('input[name="safe-query"][value="A"]').check();await page.getByRole('button',{name:'測試安全查詢 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('KeyError');
       await page.locator('input[name="safe-query"][value="B"]').check();await page.screenshot({path:'test-results/crew-03-safe.png',fullPage:true});await page.getByRole('button',{name:'測試安全查詢 ↗'}).click();await expect(page.locator('#crew-dialog .terminal-output')).toHaveText('None');await expect(page.locator('#crew-scene .holo-safe')).toContainText('安全查詢正常');
     }else{
@@ -572,7 +595,11 @@ async function solveCrewRoom(page:Page){
       await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#crew-feedback')).toContainText('包含 2');await expect(page.locator('#count')).toHaveText('7 / 10');
       await page.locator('#crew-threshold').fill('2');await page.locator('input[name="access-2"][value="GRANTED"]').check();await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#count')).toHaveText('7 / 10');
       await page.locator('input[name="access-2"][value="DENIED"]').check();await page.screenshot({path:'test-results/crew-04-verify.png',fullPage:true});await page.getByRole('button',{name:'執行維修授權驗證 ↗'}).click();await expect(page.locator('#crew-dialog')).not.toBeVisible();
-      await expect(page.locator('#count')).toHaveText('8 / 10');await expect(page.locator('#target-title')).toHaveText('雷達測量室');await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','authorized');await page.clock.runFor(700);await page.screenshot({path:'test-results/crew-05-authorized.png',fullPage:true});continue;
+      await expect(page.locator('#count')).toHaveText('8 / 10');await expect(page.locator('#target-title')).toHaveText('雷達測量室');await expect(page.locator('#crew-scene')).toHaveAttribute('data-stage','authorized');await page.clock.runFor(700);await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(32);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(7)).toHaveText(crewHandbook.example);
+      await expect(page.locator('#count')).toHaveText('8 / 10');await page.keyboard.press('Escape');
+      await page.screenshot({path:'test-results/crew-05-authorized.png' ,fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('7 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
   }
@@ -584,15 +611,37 @@ async function solveRadarRoom(page:Page){
     for(const p of route(await position(page),task.point,radarRadius))await walkTo(page,p);
     await page.locator(`[data-radar-task="${task.id}"]`).click();await expect(page.locator('#radar-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-9')).toBeVisible();
+    await expect(page.locator('#repair-handbook-9 .handbook-concepts li')).toHaveCount(4);
+    await expect(page.locator('#repair-handbook-9 .handbook-concepts pre')).toHaveText(radarHandbook.example);
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-9 [role=tabpanel]>h4')).toHaveText(`${radarHintTasks[task.id].taskId}｜${radarHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-9 .handbook-hint p')).toHaveText(radarHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.keyboard.press('Escape');
     if(task.id==='error'){
       await page.locator('input[name="radar-error"][value="A"]').check();await page.getByRole('button',{name:'分析雷達錯誤 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('ValueError');
+      await page.getByRole('button',{name:'分析雷達錯誤 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-9 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-9 [data-hint-level="3"] p')).toHaveText(radarHintTasks.error.hints[2]);
+      await page.screenshot({path:'test-results/radar-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-radar-task="error"]').click();
+      await expect(page.locator('#repair-handbook-9')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-9 .handbook-hint')).toHaveCount(3);await page.keyboard.press('Escape');
+
       await page.locator('input[name="radar-error"][value="C"]').check();await page.screenshot({path:'test-results/radar-01-error.png',fullPage:true});await page.getByRole('button',{name:'分析雷達錯誤 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toContainText('雜訊');
     }else if(task.id==='blocks'){
       await page.locator('[data-block="try:"]').click();await page.locator('[data-slot="0"]').click();await page.locator('[data-block="else:"]').click();await page.locator('[data-slot="1"]').click();await page.getByRole('button',{name:'修復例外處理 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('except ValueError:');
       await page.locator('[data-block="except ValueError:"]').dragTo(page.locator('[data-slot="1"]'));await expect(page.locator('[data-slot="0"]')).toHaveText('try:');await expect(page.locator('[data-slot="1"]')).toHaveText('except ValueError:');await page.screenshot({path:'test-results/radar-02-blocks.png',fullPage:true});
       await page.getByRole('button',{name:'修復例外處理 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toContainText('40');
     }else if(task.id==='sum'){
-      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-radar-task="sum"]').click();
+      await page.keyboard.press('Escape');await expect(page.locator('#target-status')).toContainText('2 / 4');await page.locator('[data-radar-task="sum"]').click();await page.keyboard.press('Escape');
       for(let i=0;i<5;i++)await page.locator(`input[name="signal-${i}"][value="valid"]`).check();await page.locator('#signal-total').fill('50');await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('五張分類');
       for(const i of [1,3])await page.locator(`input[name="signal-${i}"][value="noise"]`).check();await page.locator('#signal-total').fill('40');await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#count')).toHaveText('8 / 10');
       await page.locator('#signal-total').fill('50');await page.screenshot({path:'test-results/radar-03-sum.png',fullPage:true});await page.getByRole('button',{name:'計算有效訊號 ↗'}).click();await expect(page.locator('#radar-dialog .terminal-output')).toHaveText('有效訊號總和：50');
@@ -600,7 +649,11 @@ async function solveRadarRoom(page:Page){
       for(const [i,value] of ['50','2','0','2'].entries())await page.locator(`input[name="output-${i}"]`).fill(value);await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#radar-feedback')).toContainText('errors += 1');
       await page.locator('#radar-counter').fill('errors += 1');await page.locator('input[name="output-3"]').fill('0');await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#count')).toHaveText('8 / 10');
       await page.locator('input[name="output-3"]').fill('2');await page.screenshot({path:'test-results/radar-04-verify.png',fullPage:true});await page.getByRole('button',{name:'完整雷達診斷 ↗'}).click();await expect(page.locator('#radar-dialog')).not.toBeVisible();
-      await expect(page.locator('#count')).toHaveText('9 / 10');await expect(page.locator('#target-title')).toHaveText('主躍遷引擎');await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','restored');await expect(page.locator('.radar-noise')).toBeHidden();await expect(page.locator('.radar-monitor text')).toHaveText('有效總和 50 · 異常 2');await page.clock.runFor(800);await page.screenshot({path:'test-results/radar-05-restored.png',fullPage:true});continue;
+      await expect(page.locator('#count')).toHaveText('9 / 10');await expect(page.locator('#target-title')).toHaveText('主躍遷引擎');await expect(page.locator('#radar-scene')).toHaveAttribute('data-stage','restored');await expect(page.locator('.radar-noise')).toBeHidden();await expect(page.locator('.radar-monitor text')).toHaveText('有效總和 50 · 異常 2');await page.clock.runFor(800);await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(36);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(8)).toHaveText(radarHandbook.example);
+      await expect(page.locator('#count')).toHaveText('9 / 10');await page.keyboard.press('Escape');
+      await page.screenshot({path:'test-results/radar-05-restored.png' ,fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('8 / 10');await page.getByRole('button',{name:'返回船艙 →'}).click();
   }

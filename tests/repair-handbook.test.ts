@@ -1,3 +1,5 @@
+import {crewTasks} from '../src/crew';
+import {radarTasks} from '../src/radar';
 import {cargoTasks} from '../src/cargo';
 import {boosterTasks} from '../src/booster';
 import {coolingTasks} from '../src/cooling';
@@ -6,7 +8,7 @@ import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -190,4 +192,48 @@ test('第七關只計有效錯答，未移除貨箱等前置失敗與成功不�
   game.player={...cargoTasks[2].point};game.cargoTask='insert';game.submitCargo('insert','2');assert.equal(game.hints.get('7-3').attemptCount,0);
   game.player={...cargoTasks[3].point};game.cargoTask='verify';game.submitCargo('verify',{});assert.equal(game.hints.get('7-4').attemptCount,0);
   game.close();assert.equal(game.hints.get('7-1').attemptCount,1);game.reset();assert.equal(game.hints.get('7-1').attemptCount,0);
+});
+
+
+test('第 8 關四題依序解鎖、兩次門檻及持久化，前面關卡不受影響',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(crewHintTasks).map(t=>t.taskId),['8-1','8-2','8-3','8-4']);
+  for(const task of Object.values(crewHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);assert.deepEqual(loaded.get('8-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  assert.equal(loaded.get('verify').attemptCount,0);for(let n=2;n<8;n++)assert.equal(loaded.get(`${n}-4`).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('8-1').revealedHintLevel,0);
+});
+test('第 8 關只有正式錯答計次，遠距、前置失敗與完成後不計次',()=>{
+  const game=new Game();game.index=7;game.submitCrew('lookup',{role:'engineer',key:'pilot'});assert.equal(game.hints.get('8-1').attemptCount,0);
+  game.player={...crewTasks[0].point};game.openCrew('lookup');game.submitCrew('lookup',{role:'engineer',key:'pilot'});assert.equal(game.hints.get('8-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitCrew('lookup',{role:'engineer',key:'pilot'});assert.equal(game.hints.get('8-1').attemptCount,1);
+  game.player={...crewTasks[0].point};game.submitCrew('lookup',{role:'engineer',key:'engineer'});game.submitCrew('lookup',{role:'engineer',key:'pilot'});assert.equal(game.hints.get('8-1').attemptCount,1);
+  game.player={...crewTasks[3].point};game.crewTask='verify';game.submitCrew('verify',{});assert.equal(game.hints.get('8-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('8-1').attemptCount,1);game.reset();assert.equal(game.hints.get('8-1').attemptCount,0);
+});
+
+
+test('第 9 關四題依序解鎖、兩次門檻及持久化，前面關卡不受影響',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(radarHintTasks).map(t=>t.taskId),['9-1','9-2','9-3','9-4']);
+  for(const task of Object.values(radarHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);assert.deepEqual(loaded.get('9-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  assert.equal(loaded.get('verify').attemptCount,0);for(let n=2;n<9;n++)assert.equal(loaded.get(`${n}-4`).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('9-1').revealedHintLevel,0);
+});
+test('第 9 關只有正式錯答計次，遠距、前置失敗與完成後不計次',()=>{
+  const game=new Game();game.index=8;game.submitRadar('error','A');assert.equal(game.hints.get('9-1').attemptCount,0);
+  game.player={...radarTasks[0].point};game.openRadar('error');game.submitRadar('error','A');assert.equal(game.hints.get('9-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitRadar('error','A');assert.equal(game.hints.get('9-1').attemptCount,1);
+  game.player={...radarTasks[0].point};game.submitRadar('error','C');game.submitRadar('error','A');assert.equal(game.hints.get('9-1').attemptCount,1);
+  game.player={...radarTasks[3].point};game.radarTask='verify';game.submitRadar('verify',{});assert.equal(game.hints.get('9-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('9-1').attemptCount,1);game.reset();assert.equal(game.hints.get('9-1').attemptCount,0);
 });

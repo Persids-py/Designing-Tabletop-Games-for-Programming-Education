@@ -321,9 +321,111 @@ export const cargoHintTasks={
     ]
   }
 } satisfies Record<import('./cargo').CargoTaskId,HintTask>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook|typeof cargoHandbook;
+export const crewHandbook={
+  "levelId": 8,
+  "title": "船員資料庫",
+  "topic": "進階資料結構",
+  "concepts": [
+    "dict 透過鍵 key 來查找相對應的值 value。",
+    "巢狀字典需要一層一層查詢資料。",
+    "使用不存在的鍵搭配中括號查詢，可能發生 KeyError。",
+    "get() 可在鍵不存在時回傳 None，適合安全查詢。"
+  ],
+  "example": "person = {\"name\": \"Lee\", \"level\": 1}\nprint(person.get(\"job\"))",
+  "recap": "船員資料庫已恢復正常！你學會了查詢巢狀字典、使用 get() 安全讀取資料，並根據授權等級判斷權限。"
+} as const;
+export const crewHintTasks={
+  "lookup": {
+    "taskId": "8-1",
+    "title": "船員資料查詢",
+    "hints": [
+      "字典只能直接讀取實際存在的鍵。",
+      "比較查詢時的職位名稱與船員資料庫裡的職位。",
+      "檢查 crew[\"pilot\"] 是否為資料庫中的有效鍵。"
+    ]
+  },
+  "level": {
+    "taskId": "8-2",
+    "title": "授權等級",
+    "hints": [
+      "同一位船員的姓名與權限等級，是兩種不同資料。",
+      "進入 engineer 這層資料後，尋找代表授權等級的欄位。",
+      "檢查 crew[\"engineer\"] 底下的 name 與 level。"
+    ]
+  },
+  "safe": {
+    "taskId": "8-3",
+    "title": "安全查詢",
+    "hints": [
+      "當查詢的鍵可能不存在時，需要避免程式直接報錯。",
+      "Python 字典提供一種方法，能在找不到鍵時回傳預設值。",
+      "檢查是否可以用 get() 代替中括號取值。"
+    ]
+  },
+  "verify": {
+    "taskId": "8-4",
+    "title": "維修授權",
+    "hints": [
+      "先確認查得到船員資料，再判斷其授權等級。",
+      "授權要求至少為 2，請確認程式使用的比較條件。",
+      "檢查 info is not None 和 info[\"level\"] >= ...。"
+    ]
+  }
+} satisfies Record<import('./crew').CrewTaskId,HintTask>;
+export const radarHandbook={
+  "levelId": 9,
+  "title": "雷達測量室",
+  "topic": "例外與除錯",
+  "concepts": [
+    "int() 無法把任意文字都轉成整數。",
+    "當轉型失敗時，可能出現 ValueError。",
+    "try 放可能出錯的程式，except 處理指定異常。",
+    "發生錯誤後，可以記錄錯誤並繼續處理後續資料。"
+  ],
+  "example": "try:\n    n = int(\"unknown\")\nexcept ValueError:\n    print(\"無法讀取數字\")",
+  "recap": "雷達系統已恢復正常！你學會了使用 try／except 處理轉型失敗，繼續累加有效資料並統計異常次數。"
+} as const;
+export const radarHintTasks={
+  "error": {
+    "taskId": "9-1",
+    "title": "雷達錯誤分析",
+    "hints": [
+      "先確認每一筆訊號是否都能轉換成整數。",
+      "如果把一般文字送進 int()，會發生哪一種轉型異常？",
+      "檢查 int(s) 遇到「雜訊」時的結果。"
+    ]
+  },
+  "blocks": {
+    "taskId": "9-2",
+    "title": "例外處理排列",
+    "hints": [
+      "可能出錯的程式碼應放在 try 區塊內。",
+      "處理轉換失敗時，要接住正確的錯誤類型。",
+      "檢查 try: 與 except ValueError: 的位置及縮排。"
+    ]
+  },
+  "sum": {
+    "taskId": "9-3",
+    "title": "有效訊號加總",
+    "hints": [
+      "只有成功轉換成數字的資料，才能加入總和。",
+      "先標出不能轉換的訊號，再計算其餘數字。",
+      "檢查 signals 中的「雜訊」與「?」是否被忽略。"
+    ]
+  },
+  "verify": {
+    "taskId": "9-4",
+    "title": "異常計數器",
+    "hints": [
+      "錯誤次數應該只在發生異常時增加。",
+      "把更新 errors 的程式放在處理 ValueError 的區塊。",
+      "檢查 except ValueError: 下方缺少的計數器更新指令。"
+    ]
+  }
+} satisfies Record<import('./radar').RadarTaskId,HintTask>;
+export type Handbook=typeof radarHandbook|typeof crewHandbook|typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook|typeof cargoHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks),...Object.values(cargoHintTasks)];
+const allHintTasks=[...Object.values(radarHintTasks),...Object.values(crewHintTasks),...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks),...Object.values(cargoHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

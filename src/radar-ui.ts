@@ -1,16 +1,21 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {radarHandbook,radarHintTasks} from './repair-handbook';
 import {radarTasks,radarSignals,type RadarTaskId} from './radar';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupRadarUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='radar-dialog';dialog.className='alarm-dialog radar-dialog';dialog.setAttribute('aria-labelledby','radar-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,radarHandbook,radarHintTasks);
   let selected:RadarTaskId='error',block='',slots=['',''];
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#radar-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function place(index:number,value:string){slots[index]=value;dialog.querySelector(`[data-slot="${index}"]`)!.textContent=value;}
   function render(){
     const task=radarTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第九關 / 受到干擾的雷達系統</p><div class="alarm-stages" aria-label="雷達修復進度">${radarTasks.map((t,i)=>`<span class="${game.radar.repaired[t.id]?'done':t.id===selected?'current':''}">${game.radar.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>9-${radarTasks.indexOf(task)+1} / 例外與除錯</span><h2 id="radar-title">${task.name}</h2></div><div id="radar-body"></div><p id="radar-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#radar-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.radar.repaired[selected]){body.innerHTML=`<div class="device-success">✓ 雷達設備已修復</div><pre class="terminal-output">${selected==='error'?'ValueError：已找到無法轉換的「雜訊」':selected==='blocks'?'跳過「雜訊」\n15 + 25 = 40':'有效訊號總和：50'}</pre><p class="alarm-note">修復進度已保留，繼續檢查其他設備。</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;}
     if(selected==='error'){
       body.innerHTML=`<p class="alarm-instruction">當程式讀取「雜訊」並執行 int(s) 時，會發生哪種錯誤？</p><pre class="code-window"><code>signals = ["15", "雜訊", "25"]\n\nfor s in signals:\n    value = int(s)\n    print(value)</code></pre><form><fieldset class="choice-list"><legend>選擇錯誤類型</legend>${['IndexError','KeyError','ValueError','NameError'].map((name,i)=>`<label><input type="radio" name="radar-error" value="${'ABCD'[i]}" required><b>${'ABCD'[i]}</b><code>${name}</code></label>`).join('')}</fieldset><button type="submit" class="primary">分析雷達錯誤 <span>↗</span></button></form>`;
@@ -23,8 +28,8 @@ export function setupRadarUI(game:Game,callbacks:Callbacks){
     }
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);const answer=selected==='error'?data.get('radar-error'):selected==='blocks'?[...slots]:selected==='sum'?{labels:radarSignals.map((_,i)=>data.get(`signal-${i}`)),total:data.get('signal-total')}:{code:data.get('radar-counter'),outputs:Array.from({length:4},(_,i)=>data.get(`output-${i}`))};
-      const result=game.submitRadar(selected,answer);if(!result.success){feedback(result.message,true);return;}
-      if(selected==='verify'){if(!game.repair('room-9')){callbacks.notify('請在完整雷達診斷台附近完成驗證。');return;}dialog.close();callbacks.completed();return;}
+      const result=game.submitRadar(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}
+      if(selected==='verify'){if(!game.repair('room-9')){callbacks.notify('請在完整雷達診斷台附近完成驗證。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
   }
@@ -33,5 +38,5 @@ export function setupRadarUI(game:Game,callbacks:Callbacks){
   dialog.addEventListener('dragover',event=>{if((event.target as HTMLElement).closest('[data-slot]'))event.preventDefault();});
   dialog.addEventListener('drop',event=>{const target=(event.target as HTMLElement).closest<HTMLElement>('[data-slot]'),value=event.dataTransfer?.getData('text/plain');if(!target||!value||!['try:','except ValueError:','else:','finally:'].includes(value))return;event.preventDefault();place(Number(target.dataset.slot),value);});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:RadarTaskId){const error=game.openRadar(id);if(error){callbacks.notify(error);return;}selected=id;block='';slots=['',''];render();dialog.showModal();}};
+  return {dialog,open(id:RadarTaskId){const error=game.openRadar(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);block='';slots=['',''];render();dialog.showModal();}};
 }

@@ -1,16 +1,21 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {crewHandbook,crewHintTasks} from './repair-handbook';
 import {crewTasks,crewRoles,type CrewTaskId} from './crew';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupCrewUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='crew-dialog';dialog.className='alarm-dialog crew-dialog';dialog.setAttribute('aria-labelledby','crew-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,crewHandbook,crewHintTasks);
   let selected:CrewTaskId='lookup',role='';
   const database=`crew = {\n    "captain": {"name": "Lin", "level": 3},\n    "engineer": {"name": "Chen", "level": 2},\n    "medic": {"name": "Wu", "level": 1}\n}`;
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#crew-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function render(){
     const task=crewTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第八關 / 遺失的維修授權</p><div class="alarm-stages" aria-label="資料庫修復進度">${crewTasks.map((t,i)=>`<span class="${game.crew.repaired[t.id]?'done':t.id===selected?'current':''}">${game.crew.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>8-${crewTasks.indexOf(task)+1} / 字典與安全查詢</span><h2 id="crew-title">${task.name}</h2></div><div id="crew-body"></div><p id="crew-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#crew-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.crew.repaired[selected]){body.innerHTML=`<div class="device-success">✓ 船員資料設備已修復</div><pre class="terminal-output">${selected==='lookup'?'Chen':selected==='level'?'2':'None'}</pre><p class="alarm-note">${selected==='safe'?'找不到 pilot，安全回傳 None；查詢未中斷。':'查詢成功，修復進度已保留。'}</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;}
     if(selected==='lookup'){
       body.innerHTML=`<p class="alarm-instruction">系統正在尋找工程師，卻查詢了不存在的 <code>pilot</code>。請先在全像名單選擇職位，再修正字典鍵，顯示工程師姓名。</p><div class="crew-roster" role="group" aria-label="全像船員名單">${['captain','engineer','medic'].map((key,i)=>`<button type="button" data-role="${key}" aria-pressed="false"><span>${['船長','工程師','醫護員'][i]}</span><code>${key}</code><b>${['Lin','Chen','Wu'][i]}</b></button>`).join('')}</div><p id="crew-selection" class="alarm-note">尚未選擇職位</p><pre class="code-window"><code>${database}</code></pre><form><div class="crew-query"><code>print(crew["</code><input id="crew-key" name="crew-key" value="pilot" maxlength="40" required autocomplete="off" spellcheck="false" aria-label="職位字典鍵"><code>"]["name"])</code></div><button type="submit" class="primary">修復姓名查詢 <span>↗</span></button></form>`;
@@ -23,12 +28,12 @@ export function setupCrewUI(game:Game,callbacks:Callbacks){
     }
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);const answer=selected==='lookup'?{role,key:data.get('crew-key')}:selected==='level'?data.get('crew-field'):selected==='safe'?data.get('safe-query'):{threshold:data.get('crew-threshold'),decisions:crewRoles.map((_,i)=>data.get(`access-${i}`))};
-      const result=game.submitCrew(selected,answer);if(!result.success){feedback(result.message,true);return;}
-      if(selected==='verify'){if(!game.repair('room-8')){callbacks.notify('請在維修授權驗證台附近完成驗證。');return;}dialog.close();callbacks.completed();return;}
+      const result=game.submitCrew(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}
+      if(selected==='verify'){if(!game.repair('room-8')){callbacks.notify('請在維修授權驗證台附近完成驗證。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
   }
   dialog.addEventListener('click',event=>{const button=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!button)return;if(button.dataset.action==='close'){close();return;}if(button.dataset.role){role=button.dataset.role;for(const card of dialog.querySelectorAll<HTMLElement>('[data-role]'))card.setAttribute('aria-pressed',String(card.dataset.role===role));dialog.querySelector('#crew-selection')!.textContent=`已選擇職位：${role}。請在下方修改查詢鍵。`;}});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:CrewTaskId){const error=game.openCrew(id);if(error){callbacks.notify(error);return;}selected=id;role='';render();dialog.showModal();}};
+  return {dialog,open(id:CrewTaskId){const error=game.openCrew(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);role='';render();dialog.showModal();}};
 }

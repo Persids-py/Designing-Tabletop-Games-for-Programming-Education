@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,crewHintTasks,radarHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -204,7 +204,10 @@ export class Game {
   submitCrew(id:CrewTaskId,answer:unknown):AlarmResult{
     const task=crewTasks.find(t=>t.id===id);
     if(this.index!==7||this.opened!==levels[7].id||this.crewTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>crewRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.crew.submit(id,answer);
+    const eligible=!this.crew.repaired[id]&&!this.crew.blocked(id);
+    const result=this.crew.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(crewHintTasks[id].taskId);
+    return result;
   }
   openRadar(id:RadarTaskId):string|null{
     const task=radarTasks.find(t=>t.id===id);
@@ -216,7 +219,10 @@ export class Game {
   submitRadar(id:RadarTaskId,answer:unknown):AlarmResult{
     const task=radarTasks.find(t=>t.id===id);
     if(this.index!==8||this.opened!==levels[8].id||this.radarTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>radarRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.radar.submit(id,answer);
+    const eligible=!this.radar.repaired[id]&&!this.radar.blocked(id);
+    const result=this.radar.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(radarHintTasks[id].taskId);
+    return result;
   }
   openWarp(id:WarpTaskId):string|null{
     const task=warpTasks.find(t=>t.id===id);
