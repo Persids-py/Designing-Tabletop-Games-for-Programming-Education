@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -129,7 +129,10 @@ export class Game {
   submitLifeSupport(id:LifeSupportTaskId,answer:unknown):AlarmResult{
     const task=lifeSupportTasks.find(t=>t.id===id);
     if(this.index!==2||this.opened!==levels[2].id||this.lifeSupportTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>lifeSupportRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.lifeSupport.submit(id,answer);
+    const eligible=!this.lifeSupport.repaired[id]&&(id!=='verify'||this.lifeSupport.ready);
+    const result=this.lifeSupport.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(lifeSupportHintTasks[id].taskId);
+    return result;
   }
   openAirlock(id:AirlockTaskId):string|null{
     const task=airlockTasks.find(t=>t.id===id);

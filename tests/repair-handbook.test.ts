@@ -1,7 +1,8 @@
+import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -55,4 +56,31 @@ test('第二關僅有效正式錯答計次，前置、遠距、未開面板與�
   game.player={x:0,y:0};game.submitGenerator('main',[]);assert.equal(game.hints.get('2-1').attemptCount,1);
   game.player={...generatorTasks[3].point};game.generatorTask='verify';game.submitGenerator('verify','A');
   assert.equal(game.hints.get('2-4').attemptCount,0);game.reset();assert.equal(game.hints.get('2-1').attemptCount,0);
+});
+
+
+test('第三關四題依序解鎖、持久化與跨關隔離，重玩清除',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(lifeSupportHintTasks).map(t=>t.taskId),['3-1','3-2','3-3','3-4']);
+  for(const task of Object.values(lifeSupportHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);
+    assert.equal(state.reveal(task.taskId,1),true);assert.equal(state.reveal(task.taskId,2),true);
+    state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),false);
+    state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.equal(loaded.get('3-4').revealedHintLevel,3);assert.equal(loaded.get('2-4').revealedHintLevel,0);assert.equal(loaded.get('verify').revealedHintLevel,0);
+  assert.equal(loaded.get('3-1').attemptCount,2);assert.equal(loaded.get('2-1').attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('3-4').attemptCount,0);
+});
+
+test('第三關正式錯答計次，拒絕遠距、未開面板、前置未完成及重複提交計次',()=>{
+  const game=new Game();game.index=2;
+  game.submitLifeSupport('main','bad');assert.equal(game.hints.get('3-1').attemptCount,0);
+  game.player={...lifeSupportTasks[0].point};game.openLifeSupport('main');
+  game.submitLifeSupport('main','bad');assert.equal(game.hints.get('3-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitLifeSupport('main','bad');assert.equal(game.hints.get('3-1').attemptCount,1);
+  game.player={...lifeSupportTasks[0].point};game.submitLifeSupport('main','total = int(main_energy) + aux_energy');game.submitLifeSupport('main','bad');assert.equal(game.hints.get('3-1').attemptCount,1);
+  game.player={...lifeSupportTasks[3].point};game.lifeSupportTask='verify';game.submitLifeSupport('verify','155');assert.equal(game.hints.get('3-4').attemptCount,0);
+  game.reset();assert.equal(game.hints.get('3-1').attemptCount,0);
 });

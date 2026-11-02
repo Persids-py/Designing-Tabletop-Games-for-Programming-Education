@@ -66,9 +66,60 @@ export const generatorHintTasks={
     '注意第二次賦值 main_voltage = 220。'
   ]}
 } satisfies Record<import('./generator').GeneratorTaskId,{taskId:string;title:string;hints:readonly [string,string,string]}>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook;
+export const lifeSupportHandbook={
+  "levelId": 3,
+  "title": "維生系統室",
+  "topic": "運算子與型態",
+  "concepts": [
+    "整數 int 與字串 str 是不同的資料型態。",
+    "int() 可以將符合格式的數字字串轉為整數。",
+    "加法與減法的意義不同，應依據任務選擇運算子。",
+    "字串乘以整數會重複文字，不代表數值乘法。"
+  ],
+  "example": "energy = int(\"8\")\nreserve = 2\nprint(energy + reserve)",
+  "recap": "維生系統已恢復正常！你學會了區分字串與整數、使用 int() 轉型，並選擇正確運算子計算能源。"
+} as const;
+export const lifeSupportHintTasks={
+  "main": {
+    "taskId": "3-1",
+    "title": "主能源計算",
+    "hints": [
+      "觀察兩個能源數值是否屬於相同的資料型態。",
+      "雙引號中的 100 是文字，要先轉成數字才能與整數相加。",
+      "檢查 main_energy 的值，以及 total 計算那一行。"
+    ]
+  },
+  "used": {
+    "taskId": "3-2",
+    "title": "能源消耗計算",
+    "hints": [
+      "使用能源後，剩餘能源應該增加還是減少？",
+      "把「剩餘」理解成原有總量扣除已使用的數量。",
+      "檢查 remaining = total + used 中間的運算子。"
+    ]
+  },
+  "backup": {
+    "taskId": "3-3",
+    "title": "備用能源計算",
+    "hints": [
+      "數字字串乘上 2，結果可能不是你想要的數值。",
+      "要計算兩組能源的總量，先把文字型態轉成整數。",
+      "檢查 backup = \"25\" 的資料型態。"
+    ]
+  },
+  "verify": {
+    "taskId": "3-4",
+    "title": "能源總驗證",
+    "hints": [
+      "先算出能源消耗後剩下多少，再考慮備用能源。",
+      "將計算拆成兩步：總能源減去消耗，再加上備用能源。",
+      "檢查你的算式是否同時包含減去 15 和加上 50。"
+    ]
+  }
+} satisfies Record<import('./life-support').LifeSupportTaskId,HintTask>;
+export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks)];
+const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

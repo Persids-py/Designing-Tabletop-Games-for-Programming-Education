@@ -1,4 +1,4 @@
-import {alarmHandbook,alarmHintTasks,generatorHandbook,type Handbook,type HintTask,type RepairHintState} from './repair-handbook';
+import {alarmHandbook,alarmHintTasks,generatorHandbook,lifeSupportHandbook,type Handbook,type HintTask,type RepairHintState} from './repair-handbook';
 
 export function conceptContent(recap=false,handbook:Handbook=alarmHandbook){
   const content=document.createElement('div');content.className='handbook-concepts';
@@ -63,7 +63,7 @@ export function setupHandbookReview(){
     button.textContent=completed>=2?'▤ 已修復關卡觀念回顧':'▤ 第一關觀念回顧';
     const title=dialog.querySelector('h2')!;title.textContent=completed>=2?'已修復關卡 · 觀念回顧':'第一關 · 觀念回顧';
     dialog.querySelectorAll('.handbook-concepts,.review-level-title').forEach(node=>node.remove());
-    for(const book of [alarmHandbook,generatorHandbook]){
+    for(const book of [alarmHandbook,generatorHandbook,lifeSupportHandbook]){
       if(completed<book.levelId)continue;
       const heading=document.createElement('h3');heading.className='review-level-title';heading.textContent=`第${book.levelId}關 · ${book.title}`;dialog.append(heading,conceptContent(true,book));
     }

@@ -1,16 +1,21 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {lifeSupportHandbook,lifeSupportHintTasks} from './repair-handbook';
 import {lifeSupportTasks,type LifeSupportTaskId} from './life-support';
 import type {Game} from './game';
 
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupLifeSupportUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='life-support-dialog';dialog.className='alarm-dialog life-support-dialog';dialog.setAttribute('aria-labelledby','life-support-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,lifeSupportHandbook,lifeSupportHintTasks);
   let selected:LifeSupportTaskId='main',operator='+';
   const subtitles={main:'3-1 / 主能源型態轉換',used:'3-2 / 消耗運算子選擇',backup:'3-3 / 備用能源除錯',verify:'3-4 / 可用能源總驗證'};
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function render(){
     const task=lifeSupportTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第三關 / 維生能源危機</p><div class="alarm-stages" aria-label="維生設備修復進度">${lifeSupportTasks.map((t,i)=>`<span class="${game.lifeSupport.repaired[t.id]?'done':t.id===selected?'current':''}">${game.lifeSupport.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>${subtitles[selected]}</span><h2 id="life-support-title">${task.name}</h2></div><div id="life-support-body"></div><p id="life-support-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#life-support-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.lifeSupport.repaired[selected]){
       const output=selected==='main'?'120':selected==='used'?'105':selected==='backup'?'50':'155';
       body.innerHTML=`<div class="device-success">✓ 能源設備已修復</div><pre class="terminal-output">${output}</pre><p class="alarm-note">輸出型態：整數。此設備已恢復計算，修復進度已保留。</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;
@@ -30,10 +35,10 @@ export function setupLifeSupportUI(game:Game,callbacks:Callbacks){
     event.preventDefault();const data=new FormData(dialog.querySelector<HTMLFormElement>('form')!);
     const answer=selected==='used'?operator:selected==='verify'?data.get('available-expression'):data.get('energy-code');
     const result=game.submitLifeSupport(selected,answer);
-    if(!result.success){const feedback=dialog.querySelector<HTMLElement>('#life-support-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
+    if(!result.success){handbook.refresh();const feedback=dialog.querySelector<HTMLElement>('#life-support-feedback')!;feedback.textContent=result.message;feedback.classList.add('error');return;}
     if(selected==='verify'){
       if(!game.repair('room-3')){callbacks.notify('請在維生能源驗證台附近完成檢測。');return;}
-      dialog.close();callbacks.completed();return;
+      handbook.close(false);dialog.close();callbacks.completed();return;
     }
     render();callbacks.changed();dialog.querySelector('#life-support-feedback')!.textContent=result.message;
     dialog.querySelector<HTMLElement>('.primary[data-action="close"]')?.focus();
@@ -44,5 +49,5 @@ export function setupLifeSupportUI(game:Game,callbacks:Callbacks){
     if(button.dataset.operator){operator=button.dataset.operator;dialog.querySelector('#operator-preview')!.textContent=operator;for(const card of dialog.querySelectorAll<HTMLElement>('[data-operator]'))card.setAttribute('aria-pressed',String(card.dataset.operator===operator));}
   });
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:LifeSupportTaskId){const error=game.openLifeSupport(id);if(error){callbacks.notify(error);return;}selected=id;operator='+';render();dialog.showModal();}};
+  return {dialog,open(id:LifeSupportTaskId){const error=game.openLifeSupport(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);operator='+';render();dialog.showModal();}};
 }

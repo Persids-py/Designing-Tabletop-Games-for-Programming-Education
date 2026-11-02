@@ -13,7 +13,7 @@ import {radarTasks,radarRadius} from '../../src/radar';
 import {warpTasks,warpRadius} from '../../src/warp';
 import {foundLines} from '../../src/movement-tutorial';
 import {tutorialCompletionLines,tutorialCompletionKey} from '../../src/tutorial-completion';
-import {hintStorageKey,alarmHintTasks,generatorHintTasks} from '../../src/repair-handbook';
+import {hintStorageKey,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks} from '../../src/repair-handbook';
 
 async function position(page:Page):Promise<Point>{
   const raw=await page.locator('#player').getAttribute('transform');
@@ -245,9 +245,30 @@ async function solveLifeSupportRoom(page:Page){
     await page.locator(`[data-life-support-task="${task.id}"]`).click();await expect(page.locator('#life-support-title')).toHaveText(task.name);
     const before=await position(page);await page.keyboard.down('d');await page.clock.runFor(100);await page.keyboard.up('d');expect(await position(page)).toEqual(before);
     await expect(page.locator('#player')).toHaveAttribute('data-motion','idle');
+    await expect(page.locator('#repair-handbook-3')).toBeVisible();
+    await expect(page.locator('#repair-handbook-3 .handbook-concepts li')).toHaveCount(4);
+    await expect(page.locator('#repair-handbook-3 .handbook-concepts pre')).toHaveText('energy = int("8")\nreserve = 2\nprint(energy + reserve)');
+    await page.getByRole('tab',{name:'目前任務提示'}).click();
+    await expect(page.locator('#repair-handbook-3 [role=tabpanel]>h4')).toHaveText(`${lifeSupportHintTasks[task.id].taskId}｜${lifeSupportHintTasks[task.id].title}`);
+    await page.getByRole('button',{name:'查看提示 1',exact:true}).click();
+    await expect(page.locator('#repair-handbook-3 .handbook-hint p')).toHaveText(lifeSupportHintTasks[task.id].hints[0]);
+    await page.getByRole('button',{name:'查看提示 2',exact:true}).click();
+    await expect(page.getByRole('button',{name:'查看診斷提示',exact:true})).toBeDisabled();
+    await page.keyboard.press('Escape');
     if(task.id==='main'){
       await page.screenshot({path:'test-results/life-support-01-main.png',fullPage:true});
       await page.getByRole('button',{name:'修復主能源 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('TypeError');
+      await page.getByRole('button',{name:'修復主能源 ↗'}).click();
+      await page.getByRole('button',{name:'▤ 維修手冊',exact:true}).click();
+      await expect(page.locator('#repair-handbook-3 .handbook-status')).toContainText('答錯 2 次');
+      await page.getByRole('button',{name:'查看診斷提示',exact:true}).click();
+      await expect(page.locator('#repair-handbook-3 [data-hint-level="3"] p')).toHaveText(lifeSupportHintTasks.main.hints[2]);
+      await page.screenshot({path:'test-results/life-support-handbook-diagnosis.png',fullPage:true});
+      await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+      await page.locator('[data-life-support-task="main"]').click();
+      await expect(page.locator('#repair-handbook-3')).toBeVisible();
+      await page.getByRole('tab',{name:'目前任務提示'}).click();
+      await expect(page.locator('#repair-handbook-3 .handbook-hint')).toHaveCount(3);await page.keyboard.press('Escape');
       await expect(page.locator('#count')).toHaveText('2 / 10');
       await page.locator('#main-energy-code').fill('total = int(main_energy) + aux_energy');
       await page.getByRole('button',{name:'修復主能源 ↗'}).click();await expect(page.locator('#life-support-dialog .terminal-output')).toHaveText('120');
@@ -259,7 +280,7 @@ async function solveLifeSupportRoom(page:Page){
     }else if(task.id==='backup'){
       await page.getByRole('button',{name:'修復備用能源 ↗'}).click();await expect(page.locator('#life-support-feedback')).toContainText('重複文字');
       await page.keyboard.press('Escape');await expect(page.locator('#life-support-dialog')).not.toBeVisible();await expect(page.locator('#target-status')).toContainText('2 / 4');
-      await page.locator('[data-life-support-task="backup"]').click();await page.locator('#backup-energy-code').fill('backup_energy = int(backup) * cells');
+      await page.locator('[data-life-support-task="backup"]').click();await page.keyboard.press('Escape');await page.locator('#backup-energy-code').fill('backup_energy = int(backup) * cells');
       await page.screenshot({path:'test-results/life-support-03-backup.png',fullPage:true});
       await page.getByRole('button',{name:'修復備用能源 ↗'}).click();await expect(page.locator('#life-support-dialog .terminal-output')).toHaveText('50');
     }else{
@@ -270,6 +291,10 @@ async function solveLifeSupportRoom(page:Page){
       await expect(page.locator('#count')).toHaveText('3 / 10');await expect(page.locator('#target-title')).toHaveText('氣閘艙');
       await expect(page.locator('#life-support-scene')).toHaveAttribute('data-stage','restored');
       await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(3);await expect(page.locator('#life-support-scene .life-monitor text')).toHaveText('可用能源 155');
+      await page.locator('#handbook-review-trigger').click();
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts li')).toHaveCount(12);
+      await expect(page.locator('#handbook-review-dialog .handbook-concepts pre').nth(2)).toHaveText('energy = int("8")\nreserve = 2\nprint(energy + reserve)');
+      await expect(page.locator('#count')).toHaveText('3 / 10');await page.keyboard.press('Escape');
       await page.clock.runFor(600);await page.screenshot({path:'test-results/life-support-05-restored.png',fullPage:true});continue;
     }
     await expect(page.locator('#count')).toHaveText('2 / 10');await expect(page.locator('#life-support-scene .energy-tank.online')).toHaveCount(i+1);
