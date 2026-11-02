@@ -270,9 +270,60 @@ export const boosterHintTasks={
     ]
   }
 } satisfies Record<import('./booster').BoosterTaskId,HintTask>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook;
+export const cargoHandbook={
+  "levelId": 7,
+  "title": "資材庫存室",
+  "topic": "基礎資料結構",
+  "concepts": [
+    "list 是可以依序保存多個資料的串列。",
+    "串列索引從 0 開始，第一項的索引為 0。",
+    "pop(index) 可移除指定位置的項目。",
+    "insert(index, value) 會插入資料，後面的索引可能改變。"
+  ],
+  "example": "items = [\"甲\", \"乙\", \"丙\"]\nprint(items[0])\nitems.pop(1)",
+  "recap": "倉儲系統已恢復正常！你學會了從 0 追蹤串列索引，並在刪除與插入資料後重新確認項目位置。"
+} as const;
+export const cargoHintTasks={
+  "remove": {
+    "taskId": "7-1",
+    "title": "受損貨箱",
+    "hints": [
+      "Python 串列的第一個元素並不是索引 1。",
+      "從 0 開始數，觀察 pop(1) 指向哪個貨箱。",
+      "檢查 boxes.pop(1) 的索引數字。"
+    ]
+  },
+  "index": {
+    "taskId": "7-2",
+    "title": "索引超界",
+    "hints": [
+      "刪掉一個貨箱後，串列長度也會改變。",
+      "重新從 0 開始標記剩下三個貨箱的位置。",
+      "檢查 boxes[3] 是否超過目前最後一個有效索引。"
+    ]
+  },
+  "insert": {
+    "taskId": "7-3",
+    "title": "插入備用物資",
+    "hints": [
+      "insert() 的第一個參數指定新資料插入的位置。",
+      "如果想把新貨箱放在第二個位置，要從索引 0 開始計算。",
+      "檢查 boxes.insert(______, \"E保險絲\") 的第一個參數。"
+    ]
+  },
+  "verify": {
+    "taskId": "7-4",
+    "title": "最終物資領取",
+    "hints": [
+      "刪除與插入都會讓貨箱的位置發生變化。",
+      "請依照程式順序，先刪除，再插入，最後重新列出索引。",
+      "逐步檢查 pop()、insert() 完成後的整個 boxes 清單。"
+    ]
+  }
+} satisfies Record<import('./cargo').CargoTaskId,HintTask>;
+export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook|typeof boosterHandbook|typeof cargoHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks)];
+const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks),...Object.values(boosterHintTasks),...Object.values(cargoHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

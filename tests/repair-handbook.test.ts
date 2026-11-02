@@ -1,3 +1,4 @@
+import {cargoTasks} from '../src/cargo';
 import {boosterTasks} from '../src/booster';
 import {coolingTasks} from '../src/cooling';
 import {airlockTasks} from '../src/airlock';
@@ -5,7 +6,7 @@ import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -163,4 +164,30 @@ test('第六關有效錯答才計次，三段測試的部分成功、重開及�
   game.close();game.openBooster('verify');game.submitBooster('verify','0');assert.equal(game.hints.get('6-4').attemptCount,2);
   game.submitBooster('verify','30');game.submitBooster('verify','60');game.submitBooster('verify','0');assert.equal(game.hints.get('6-4').attemptCount,2);assert.deepEqual(game.booster.testOutputs,[0,30,60]);
   game.reset();assert.equal(game.hints.get('6-4').attemptCount,0);
+});
+
+
+test('第七關四題提示、門檻與持久化獨立於前六關，重玩清除',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(cargoHintTasks).map(t=>t.taskId),['7-1','7-2','7-3','7-4']);
+  for(const task of Object.values(cargoHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.deepEqual(loaded.get('7-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  for(const id of ['verify','2-4','3-4','4-4','5-4','6-4'])assert.equal(loaded.get(id).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('7-1').revealedHintLevel,0);
+});
+
+test('第七關只計有效錯答，未移除貨箱等前置失敗與成功不計次',()=>{
+  const game=new Game();game.index=6;game.submitCargo('remove','A');assert.equal(game.hints.get('7-1').attemptCount,0);
+  game.player={...cargoTasks[0].point};game.openCargo('remove');game.submitCargo('remove','A');assert.equal(game.hints.get('7-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitCargo('remove','A');assert.equal(game.hints.get('7-1').attemptCount,1);
+  game.player={...cargoTasks[1].point};game.cargoTask='index';game.submitCargo('index','3');assert.equal(game.hints.get('7-2').attemptCount,0);
+  game.player={...cargoTasks[0].point};game.cargoTask='remove';game.submitCargo('remove','B');game.submitCargo('remove','A');assert.equal(game.hints.get('7-1').attemptCount,1);
+  game.player={...cargoTasks[2].point};game.cargoTask='insert';game.submitCargo('insert','2');assert.equal(game.hints.get('7-3').attemptCount,0);
+  game.player={...cargoTasks[3].point};game.cargoTask='verify';game.submitCargo('verify',{});assert.equal(game.hints.get('7-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('7-1').attemptCount,1);game.reset();assert.equal(game.hints.get('7-1').attemptCount,0);
 });

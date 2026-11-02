@@ -1,10 +1,13 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {cargoHandbook,cargoHintTasks} from './repair-handbook';
 import {cargoTasks,cargoNames,type CargoTaskId} from './cargo';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupCargoUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='cargo-dialog';dialog.className='alarm-dialog cargo-dialog';dialog.setAttribute('aria-labelledby','cargo-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,cargoHandbook,cargoHintTasks);
   let selected:CargoTaskId='remove',order=['D','C','A','E'],pickup='',dragged='';
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#cargo-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   const listCode=(boxes:string[])=>`boxes = [\n${boxes.map(box=>`    "${cargoNames[box]}"`).join(',\n')}\n]`;
   const shelf=(boxes:string[])=>`<div class="cargo-shelf" aria-label="貨架與索引">${boxes.map((box,i)=>`<button type="button" data-shelf-index="${i}" aria-label="${cargoNames[box]} 索引 ${i}"><small>索引 ${i}</small><strong>${box}</strong><span>${cargoNames[box].slice(2)}</span></button>`).join('')}</div>`;
@@ -15,6 +18,8 @@ export function setupCargoUI(game:Game,callbacks:Callbacks){
     const task=cargoTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第七關 / 混亂的自動倉儲系統</p><div class="alarm-stages" aria-label="倉儲修復進度">${cargoTasks.map((t,i)=>`<span class="${game.cargo.repaired[t.id]?'done':t.id===selected?'current':''}">${game.cargo.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>7-${cargoTasks.indexOf(task)+1} / 串列與索引</span><h2 id="cargo-title">${task.name}</h2></div><div id="cargo-body"></div><p id="cargo-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#cargo-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.cargo.repaired[selected]){
       body.innerHTML=`<div class="device-success">✓ 倉儲設備已修復</div>${shelf(game.cargo.boxes)}<pre class="terminal-output">${selected==='remove'?'已移除 B 氧氣罐':selected==='index'?'D 工具箱':'E 保險絲已插入索引 1'}</pre><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;
     }
@@ -29,8 +34,8 @@ export function setupCargoUI(game:Game,callbacks:Callbacks){
     }
     dialog.querySelector('form')?.addEventListener('submit',event=>{
       event.preventDefault();const data=new FormData(dialog.querySelector('form')!);const answer=selected==='remove'?data.get('damaged-box'):selected==='index'?data.get('cargo-index'):selected==='insert'?data.get('cargo-insert'):{count:data.get('cargo-count'),order:[...order],item:data.get('pickup')};
-      const result=game.submitCargo(selected,answer);if(!result.success){feedback(result.message,true);return;}
-      if(selected==='verify'){if(!game.repair('room-7')){callbacks.notify('請在物資領取控制台附近完成驗證。');return;}dialog.close();callbacks.completed();return;}
+      const result=game.submitCargo(selected,answer);if(!result.success){handbook.refresh();feedback(result.message,true);return;}
+      if(selected==='verify'){if(!game.repair('room-7')){callbacks.notify('請在物資領取控制台附近完成驗證。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
   }
@@ -45,5 +50,5 @@ export function setupCargoUI(game:Game,callbacks:Callbacks){
   dialog.addEventListener('dragover',event=>{if((event.target as HTMLElement).closest('#cargo-order li'))event.preventDefault();});
   dialog.addEventListener('drop',event=>{const target=(event.target as HTMLElement).closest<HTMLElement>('#cargo-order li');if(!target)return;event.preventDefault();const box=event.dataTransfer?.getData('text/plain')||dragged,from=order.indexOf(box),to=order.indexOf(target.dataset.box!);if(from<0||to<0||from===to)return;order.splice(from,1);order.splice(to,0,box);renderOrder();});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:CargoTaskId){const error=game.openCargo(id);if(error){callbacks.notify(error);return;}selected=id;order=['D','C','A','E'];pickup='';render();dialog.showModal();}};
+  return {dialog,open(id:CargoTaskId){const error=game.openCargo(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);order=['D','C','A','E'];pickup='';render();dialog.showModal();}};
 }

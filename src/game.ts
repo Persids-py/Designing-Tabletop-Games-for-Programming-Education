@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,boosterHintTasks,cargoHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -189,7 +189,10 @@ export class Game {
   submitCargo(id:CargoTaskId,answer:unknown):AlarmResult{
     const task=cargoTasks.find(t=>t.id===id);
     if(this.index!==6||this.opened!==levels[6].id||this.cargoTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>cargoRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.cargo.submit(id,answer);
+    const eligible=!this.cargo.repaired[id]&&!this.cargo.blocked(id);
+    const result=this.cargo.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(cargoHintTasks[id].taskId);
+    return result;
   }
   openCrew(id:CrewTaskId):string|null{
     const task=crewTasks.find(t=>t.id===id);
