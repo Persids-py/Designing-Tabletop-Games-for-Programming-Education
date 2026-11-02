@@ -1,15 +1,20 @@
+import {setupRepairHandbook} from './repair-handbook-ui';
+import {coolingHandbook,coolingHintTasks} from './repair-handbook';
 import {coolingTasks,simulateCoolingStep,type CoolingTaskId} from './cooling';
 import type {Game} from './game';
 interface Callbacks{changed:()=>void;completed:()=>void;closed:()=>void;notify:(message:string)=>void}
 export function setupCoolingUI(game:Game,callbacks:Callbacks){
   const dialog=document.createElement('dialog');dialog.id='cooling-dialog';dialog.className='alarm-dialog cooling-dialog';dialog.setAttribute('aria-labelledby','cooling-title');document.body.append(dialog);
+  const handbook=setupRepairHandbook(dialog,game.hints,coolingHandbook,coolingHintTasks);
   let selected:CoolingTaskId='cause';
-  function close(){dialog.close();game.close();callbacks.closed();}
+  function close(){handbook.close(false);dialog.close();game.close();callbacks.closed();}
   function feedback(message:string,error=false){const el=dialog.querySelector<HTMLElement>('#cooling-feedback')!;el.textContent=message;el.classList.toggle('error',error);}
   function render(){
     const task=coolingTasks.find(t=>t.id===selected)!;
     dialog.innerHTML=`<button type="button" class="close" data-action="close" aria-label="關閉維修面板">×</button><p class="eyebrow">第五關 / 無法停止的冷卻循環</p><div class="alarm-stages" aria-label="冷卻設備修復進度">${coolingTasks.map((t,i)=>`<span class="${game.cooling.repaired[t.id]?'done':t.id===selected?'current':''}">${game.cooling.repaired[t.id]?'✓':i+1} ${t.name}</span>`).join('')}</div><div class="alarm-heading"><span>5-${coolingTasks.indexOf(task)+1} / 迴圈控制</span><h2 id="cooling-title">${task.name}</h2></div><div id="cooling-body"></div><p id="cooling-feedback" class="alarm-feedback" role="status" aria-live="polite"></p>`;
     const body=dialog.querySelector<HTMLElement>('#cooling-body')!;
+    const content=document.createElement('section');content.className='alarm-content';
+    while(dialog.firstChild)content.append(dialog.firstChild);dialog.append(content);handbook.mount(selected);
     if(game.cooling.repaired[selected]){
       body.innerHTML=`<div class="device-success">✓ 冷卻設備已修復</div><pre class="terminal-output">${selected==='cause'?'已定位缺少的溫度更新\nwhile 區塊內新增：\n    temperature -= 10':selected==='drop'?'單次模擬：100°C → 90°C':'cycles：0 → 1'}</pre><p class="alarm-note">修復進度已保留。${selected==='cause'?'前往降溫控制器設定每輪的降溫量。':'繼續檢查其他設備，最後執行完整冷卻。'}</p><button type="button" class="primary" data-action="close">返回船艙 <span>→</span></button>`;return;
     }
@@ -27,12 +32,12 @@ export function setupCoolingUI(game:Game,callbacks:Callbacks){
       const answer=selected==='cause'?data.get('loop-cause'):selected==='drop'?data.get('cooling-drop'):selected==='counter'?data.get('cycles-code'):Array.from({length:6},(_,i)=>data.get(`result-${i}`));
       const preview=selected==='drop'?simulateCoolingStep(answer):null;
       const result=game.submitCooling(selected,answer);
-      if(!result.success){if(selected==='drop')dialog.querySelector('#cooling-preview')!.textContent=preview===null?'請輸入 0 至 100 的整數。':`單次模擬：100°C → ${preview}°C${preview===100?'（溫度沒有改變）':''}`;feedback(result.message,true);return;}
-      if(selected==='verify'){if(!game.repair('room-5')){callbacks.notify('請在冷卻系統測試台附近完成驗證。');return;}dialog.close();callbacks.completed();return;}
+      if(!result.success){handbook.refresh();if(selected==='drop')dialog.querySelector('#cooling-preview')!.textContent=preview===null?'請輸入 0 至 100 的整數。':`單次模擬：100°C → ${preview}°C${preview===100?'（溫度沒有改變）':''}`;feedback(result.message,true);return;}
+      if(selected==='verify'){if(!game.repair('room-5')){callbacks.notify('請在冷卻系統測試台附近完成驗證。');return;}handbook.close(false);dialog.close();callbacks.completed();return;}
       render();callbacks.changed();feedback(result.message);dialog.querySelector<HTMLButtonElement>('.primary')?.focus();
     });
   }
   dialog.addEventListener('click',event=>{const button=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!button)return;if(button.dataset.action==='close'){close();return;}if(button.dataset.counter)dialog.querySelector<HTMLInputElement>('#cycles-code')!.value=button.dataset.counter;});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  return {dialog,open(id:CoolingTaskId){const error=game.openCooling(id);if(error){callbacks.notify(error);return;}selected=id;render();dialog.showModal();}};
+  return {dialog,open(id:CoolingTaskId){const error=game.openCooling(id);if(error){callbacks.notify(error);return;}selected=id;handbook.select(id);render();dialog.showModal();}};
 }

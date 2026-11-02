@@ -1,5 +1,5 @@
 import { point, spawn, SCALE, type Point } from './map';
-import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks} from './repair-handbook';
+import {RepairHintState,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks} from './repair-handbook';
 import {AlarmState,alarmTasks,alarmRadius,type AlarmTaskId,type AlarmResult} from './alarm';
 import {GeneratorState,generatorTasks,generatorRadius,type GeneratorTaskId} from './generator';
 import {LifeSupportState,lifeSupportTasks,lifeSupportRadius,type LifeSupportTaskId} from './life-support';
@@ -159,7 +159,10 @@ export class Game {
   submitCooling(id:CoolingTaskId,answer:unknown):AlarmResult{
     const task=coolingTasks.find(t=>t.id===id);
     if(this.index!==4||this.opened!==levels[4].id||this.coolingTask!==id||!task||Math.hypot(this.player.x-task.point.x,this.player.y-task.point.y)>coolingRadius)return {success:false,message:'請先抵達設備並開啟維修面板。'};
-    return this.cooling.submit(id,answer);
+    const eligible=!this.cooling.repaired[id]&&!this.cooling.blocked(id);
+    const result=this.cooling.submit(id,answer);
+    if(eligible&&!result.success)this.hints.recordFailure(coolingHintTasks[id].taskId);
+    return result;
   }
   openBooster(id:BoosterTaskId):string|null{
     const task=boosterTasks.find(t=>t.id===id);

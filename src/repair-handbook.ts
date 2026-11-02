@@ -168,9 +168,60 @@ export const airlockHintTasks={
     ]
   }
 } satisfies Record<import('./airlock').AirlockTaskId,HintTask>;
-export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook;
+export const coolingHandbook={
+  "levelId": 5,
+  "title": "引擎冷卻室",
+  "topic": "迴圈控制",
+  "concepts": [
+    "while 會在條件成立時重複執行區塊內的程式。",
+    "迴圈內必須讓控制條件有機會改變，才能正常停止。",
+    "temperature -= 5 等同於 temperature = temperature - 5。",
+    "計數器可以記錄迴圈執行的次數。"
+  ],
+  "example": "count = 0\nwhile count < 3:\n    count += 1\nprint(count)",
+  "recap": "冷卻系統已恢復正常！你學會了在迴圈中更新變數、累計次數，並追蹤每輪輸出與停止條件。"
+} as const;
+export const coolingHintTasks={
+  "cause": {
+    "taskId": "5-1",
+    "title": "無窮迴圈",
+    "hints": [
+      "如果條件永遠成立，while 就可能無法停止。",
+      "觀察迴圈內有沒有改變 temperature 的數值。",
+      "檢查 while 區塊中是否只有 print()。"
+    ]
+  },
+  "drop": {
+    "taskId": "5-2",
+    "title": "降溫程式",
+    "hints": [
+      "從起始溫度到目標溫度，需要下降多少度？",
+      "將總共需要降低的溫度，平均分成四次。",
+      "檢查 temperature -= 後面的數字。"
+    ]
+  },
+  "counter": {
+    "taskId": "5-3",
+    "title": "循環計數器",
+    "hints": [
+      "計數器應該在每次迴圈執行後更新。",
+      "如果每次只增加 1，可以使用 += 運算子。",
+      "檢查 while 區塊中有沒有修改 cycles。"
+    ]
+  },
+  "verify": {
+    "taskId": "5-4",
+    "title": "冷卻總測試",
+    "hints": [
+      "先觀察溫度每一輪如何變化，再統計執行次數。",
+      "注意程式是先降低溫度，然後才印出當次的數值。",
+      "追蹤 temperature 和 cycles 兩個變數的變化。"
+    ]
+  }
+} satisfies Record<import('./cooling').CoolingTaskId,HintTask>;
+export type Handbook=typeof alarmHandbook|typeof generatorHandbook|typeof lifeSupportHandbook|typeof airlockHandbook|typeof coolingHandbook;
 export type HintTask={taskId:string;title:string;hints:readonly [string,string,string]};
-const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks)];
+const allHintTasks=[...Object.values(alarmHintTasks),...Object.values(generatorHintTasks),...Object.values(lifeSupportHintTasks),...Object.values(airlockHintTasks),...Object.values(coolingHintTasks)];
 // 保留第一關既有設備 ID 呼叫介面；跨關使用完整 taskId，避免 verify 名稱衝突。
 const taskKey=(id:string)=>alarmHintTasks[id as AlarmTaskId]?.taskId??id;
 export interface HintProgress{revealedHintLevel:number;attemptCount:number;diagnosisUnlocked:boolean}

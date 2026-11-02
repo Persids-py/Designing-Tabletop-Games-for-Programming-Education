@@ -1,9 +1,10 @@
+import {coolingTasks} from '../src/cooling';
 import {airlockTasks} from '../src/airlock';
 import {lifeSupportTasks} from '../src/life-support';
 import {generatorTasks} from '../src/generator';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,hintStorageKey} from '../src/repair-handbook';
+import {RepairHintState,alarmHintTasks,generatorHintTasks,lifeSupportHintTasks,airlockHintTasks,coolingHintTasks,hintStorageKey} from '../src/repair-handbook';
 import {Game} from '../src/game';
 import {alarmTasks} from '../src/alarm';
 function store(){const data=new Map<string,string>();return {data,get:()=>({getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);},removeItem:(k:string)=>{data.delete(k);}})};}
@@ -108,4 +109,28 @@ test('第四關僅正式錯答計次，前置、距離、關閉、成功及重�
   game.player={...airlockTasks[0].point};game.submitAirlock('colon',':');game.submitAirlock('colon',';');assert.equal(game.hints.get('4-1').attemptCount,1);
   game.player={...airlockTasks[3].point};game.airlockTask='verify';game.submitAirlock('verify',[]);assert.equal(game.hints.get('4-4').attemptCount,0);
   game.close();assert.equal(game.hints.get('4-1').attemptCount,1);game.reset();assert.equal(game.hints.get('4-1').attemptCount,0);
+});
+
+
+test('第五關四題提示依序解鎖、持久保存，與前四關紀錄隔離',()=>{
+  const memory=store(),state=new RepairHintState(memory.get);
+  assert.deepEqual(Object.values(coolingHintTasks).map(t=>t.taskId),['5-1','5-2','5-3','5-4']);
+  for(const task of Object.values(coolingHintTasks)){
+    assert.equal(state.reveal(task.taskId,2),false);assert.equal(state.reveal(task.taskId,1),true);
+    assert.equal(state.reveal(task.taskId,2),true);state.recordFailure(task.taskId);
+    assert.equal(state.reveal(task.taskId,3),false);state.recordFailure(task.taskId);assert.equal(state.reveal(task.taskId,3),true);
+  }
+  const loaded=new RepairHintState(memory.get);
+  assert.deepEqual(loaded.get('5-4'),{attemptCount:2,revealedHintLevel:3,diagnosisUnlocked:true});
+  for(const id of ['verify','2-4','3-4','4-4'])assert.equal(loaded.get(id).attemptCount,0);
+  loaded.reset();assert.equal(loaded.get('5-1').revealedHintLevel,0);
+});
+
+test('第五關只計有效正式錯答，拒絕前置、遠距、未開面板與重複提交計次',()=>{
+  const game=new Game();game.index=4;game.submitCooling('cause','B');assert.equal(game.hints.get('5-1').attemptCount,0);
+  game.player={...coolingTasks[0].point};game.openCooling('cause');game.submitCooling('cause','B');assert.equal(game.hints.get('5-1').attemptCount,1);
+  game.player={x:0,y:0};game.submitCooling('cause','B');assert.equal(game.hints.get('5-1').attemptCount,1);
+  game.player={...coolingTasks[0].point};game.submitCooling('cause','A');game.submitCooling('cause','B');assert.equal(game.hints.get('5-1').attemptCount,1);
+  game.player={...coolingTasks[3].point};game.coolingTask='verify';game.submitCooling('verify',[]);assert.equal(game.hints.get('5-4').attemptCount,0);
+  game.close();assert.equal(game.hints.get('5-1').attemptCount,1);game.reset();assert.equal(game.hints.get('5-1').attemptCount,0);
 });
